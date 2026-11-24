@@ -1,0 +1,736 @@
+<title>Libro in Pratica</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: a reading desk. Library + upload on the home view; on a book, a lesson path on the left
+   and the day's lesson on the right, with a highlighter-marker accent for what to do today. */
+:root {
+  --bg: #eef1f3;
+  --paper: #fbfcfc;
+  --ink: #18222d;
+  --muted: #5a6775;
+  --line: #d6dde3;
+  --teal: #0e5d5a;
+  --teal-soft: #dcecea;
+  --marker: #e4f36b;
+  --marker-ink: #18222d;
+  --danger: #a3302a;
+  --ok: #2f7a3e;
+  --f-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-read: "Literata", Georgia, "Times New Roman", serif;
+  --f-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f141a; --paper: #171e26; --ink: #e4e9ee; --muted: #98a5b2; --line: #2a3540;
+  --teal: #5cc5bb; --teal-soft: #1a3533; --marker: #cfe24d; --marker-ink: #141a10;
+  --danger: #ef7d74; --ok: #7ccf8a; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0f141a; --paper: #171e26; --ink: #e4e9ee; --muted: #98a5b2; --line: #2a3540;
+  --teal: #5cc5bb; --teal-soft: #1a3533; --marker: #cfe24d; --marker-ink: #141a10;
+  --danger: #ef7d74; --ok: #7ccf8a; color-scheme: dark }
+
+* { box-sizing: border-box }
+[hidden] { display: none !important }
+body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--f-ui); margin: 0 }
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 20px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; line-height: 1.15 }
+h1 { font-size: clamp(1.9rem, 4.5vw, 2.8rem); font-weight: 700; letter-spacing: -.01em }
+h2 { font-size: 1.45rem; font-weight: 700 }
+h3 { font-size: 1.05rem; font-weight: 700 }
+p { margin: 0 }
+.label { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600 }
+.mark { background: linear-gradient(transparent 55%, var(--marker) 55%, var(--marker) 92%, transparent 92%); color: inherit; padding: 0 .1em }
+button, .btn { font: 500 .92rem var(--f-ui); border-radius: 8px; border: 1px solid var(--line); background: var(--paper);
+  color: var(--ink); padding: .55rem .9rem; cursor: pointer; display: inline-flex; align-items: center; gap: .4rem }
+button:hover { border-color: var(--teal) }
+button:focus-visible, textarea:focus-visible, input:focus-visible, .lesson-item:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px }
+button.primary { background: var(--teal); border-color: var(--teal); color: var(--paper) }
+button.ghost { background: transparent; border-color: transparent; color: var(--muted) }
+button.ghost:hover { color: var(--ink) }
+button.danger { color: var(--danger) }
+button:disabled { opacity: .55; cursor: default }
+textarea, input[type=text] { width: 100%; font: 15px/1.5 var(--f-ui); color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 8px; padding: .65rem .75rem; resize: vertical }
+
+/* top bar */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 28px }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--f-display); font-weight: 700; font-size: 1.15rem; background: none; border: 0; padding: 0 }
+.brand svg { flex: none }
+.store-note { font-size: .78rem; color: var(--muted) }
+
+/* home */
+.hero { display: grid; grid-template-columns: 1.1fr .9fr; gap: 32px; align-items: start; margin-bottom: 40px }
+.hero > * { min-width: 0 }
+.hero p.lead { font-family: var(--f-read); font-size: 1.12rem; color: var(--muted); margin-top: 14px; max-width: 34em }
+.drop { margin-top: 24px; border: 2px dashed var(--line); border-radius: var(--r); background: var(--paper); padding: 26px 20px;
+  display: grid; gap: 10px; justify-items: start; transition: border-color .15s }
+.drop.over { border-color: var(--teal); background: var(--teal-soft) }
+.drop .formats { font-size: .82rem; color: var(--muted) }
+.steps { display: grid; gap: 14px; margin-top: 26px; padding: 0; list-style: none; counter-reset: s }
+.steps li { display: grid; grid-template-columns: 28px 1fr; gap: 10px; counter-increment: s; font-size: .93rem; color: var(--muted) }
+.steps li::before { content: counter(s); width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--teal); color: var(--teal);
+  display: grid; place-items: center; font: 600 .8rem var(--f-ui) }
+.steps b { color: var(--ink); font-weight: 600 }
+
+.progress-box { margin-top: 18px; display: grid; gap: 8px }
+.bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden }
+.bar > i { display: block; height: 100%; width: 0; background: var(--teal); transition: width .3s }
+.msg { font-size: .9rem; color: var(--muted) }
+.msg.err { color: var(--danger) }
+
+/* example / lesson card */
+.card { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); padding: 22px }
+.example-tag { display: inline-block; font-size: .7rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+  border: 1px solid var(--line); border-radius: 99px; padding: 2px 9px; color: var(--muted) }
+
+.lesson { display: grid; gap: 22px }
+.lesson .idea { font-family: var(--f-read); font-size: 1.3rem; line-height: 1.45; font-weight: 600 }
+.lesson .body { font-family: var(--f-read); font-size: 1.02rem; line-height: 1.7; max-width: 40em }
+.quote { font-family: var(--f-read); font-style: italic; border-left: 3px solid var(--teal); padding: 2px 0 2px 14px; color: var(--muted); max-width: 40em }
+.apps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px }
+.app { border: 1px solid var(--line); border-radius: 8px; padding: 14px; display: grid; gap: 6px; align-content: start }
+.app .where { font: 600 .78rem var(--f-ui); color: var(--teal); text-transform: uppercase; letter-spacing: .06em }
+.app p { font-size: .93rem }
+.challenge { border-radius: var(--r); padding: 18px; background: var(--teal-soft); display: grid; gap: 10px }
+.challenge ol { margin: 0; padding-left: 1.2em; display: grid; gap: 4px }
+.challenge .meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: space-between }
+.pill { font: 600 .72rem var(--f-ui); border-radius: 99px; padding: 3px 10px; border: 1px solid currentColor; white-space: nowrap }
+.pill.done { color: var(--ok) } .pill.todo { color: var(--muted) } .pill.now { color: var(--teal) }
+.pitfall { font-size: .93rem; color: var(--muted) }
+.pitfall b { color: var(--ink) }
+
+/* book view */
+.book-head { display: grid; gap: 10px; margin-bottom: 22px }
+.book-head .thesis { font-family: var(--f-read); color: var(--muted); max-width: 46em }
+.principles { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px }
+.chip { font-size: .82rem; border: 1px solid var(--line); background: var(--paper); border-radius: 99px; padding: 4px 11px; cursor: help }
+.stats { display: flex; gap: 22px; flex-wrap: wrap; align-items: center; font-size: .88rem; color: var(--muted) }
+.stats strong { font: 700 1.25rem var(--f-display); color: var(--ink); font-variant-numeric: tabular-nums; margin-right: 4px }
+.stats .bar { width: 160px }
+
+.desk { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 24px; align-items: start }
+.path { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); max-height: calc(100vh - 40px); overflow: auto;
+  background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); padding: 8px }
+.path .label { padding: 8px 10px 6px }
+.lesson-item { width: 100%; text-align: left; border: 0; background: transparent; border-radius: 7px; padding: 8px 10px;
+  display: grid; grid-template-columns: 26px minmax(0,1fr) auto; gap: 8px; align-items: center; font-size: .88rem }
+.lesson-item:hover { background: var(--bg) }
+.lesson-item.active { background: var(--teal-soft) }
+.lesson-item .n { font: 600 .78rem var(--f-ui); color: var(--muted); font-variant-numeric: tabular-nums }
+.lesson-item .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.dot { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--muted) }
+.dot.done { background: var(--ok); border-color: var(--ok) }
+.dot.seen { border-color: var(--teal) }
+
+.section { display: grid; gap: 10px }
+.journal-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center }
+.feedback { font-family: var(--f-read); white-space: pre-wrap; border-left: 3px solid var(--marker); padding-left: 14px }
+.chat { display: grid; gap: 10px }
+.chat-log { display: grid; gap: 10px; max-height: 420px; overflow: auto }
+.bubble { padding: 10px 13px; border-radius: 10px; max-width: 88%; white-space: pre-wrap; font-size: .94rem }
+.bubble.me { justify-self: end; background: var(--teal); color: var(--paper) }
+.bubble.ai { justify-self: start; background: var(--bg); border: 1px solid var(--line); font-family: var(--f-read) }
+.chat-form { display: flex; gap: 8px; align-items: flex-end }
+.chat-form textarea { min-height: 44px }
+.suggest { display: flex; gap: 6px; flex-wrap: wrap }
+.suggest button { font-size: .8rem; padding: .35rem .65rem; border-radius: 99px }
+
+.library { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; margin-top: 14px }
+.book-card { text-align: left; display: grid; gap: 8px; padding: 18px; align-content: start; border-radius: var(--r) }
+.book-card .ttl { font: 700 1.05rem var(--f-display) }
+.book-card .au { color: var(--muted); font-size: .86rem }
+.confirm { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: .88rem }
+.skeleton { display: grid; gap: 12px }
+.skeleton i { display: block; height: 14px; border-radius: 4px; background: var(--line); animation: pulse 1.4s ease-in-out infinite }
+@keyframes pulse { 50% { opacity: .45 } }
+@media (prefers-reduced-motion: reduce) { .skeleton i, .bar > i { animation: none; transition: none } }
+dialog { border: 1px solid var(--line); border-radius: var(--r); background: var(--paper); color: var(--ink); max-width: min(560px, calc(100vw - 32px)); padding: 22px }
+dialog::backdrop { background: rgba(10, 16, 22, .45) }
+.row { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 12px }
+
+@media (max-width: 860px) {
+  .hero { grid-template-columns: 1fr }
+  .desk { grid-template-columns: 1fr }
+  .path { position: static; max-height: 300px }
+  .apps { grid-template-columns: 1fr }
+}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <button class="brand" id="go-home" type="button" aria-label="Torna alla biblioteca">
+      <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><rect x="3" y="5" width="10" height="18" rx="2" fill="var(--teal)"/><rect x="15" y="5" width="10" height="18" rx="2" fill="none" stroke="var(--teal)" stroke-width="2"/><rect x="16" y="15" width="8" height="4" fill="var(--marker)"/></svg>
+      Libro in Pratica
+    </button>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <span class="store-note" id="store-note">Preparo la biblioteca…</span>
+      <button type="button" id="open-profile">Su di me</button>
+    </div>
+  </header>
+  <main id="app"></main>
+</div>
+
+<dialog id="profile-dlg">
+  <h2>Su di me</h2>
+  <p class="msg" style="margin:8px 0 12px">Più dettagli dai, più gli esempi saranno tagliati sulla tua vita. Resta privato: lo vedi solo tu.</p>
+  <label class="label" for="profile-text">La mia situazione</label>
+  <textarea id="profile-text" rows="6" placeholder="Es. Lavoro come infermiera su turni, due figli piccoli, vorrei essere meno reattiva e trovare 20 minuti al giorno per me."></textarea>
+  <div class="row"><button type="button" id="profile-cancel">Annulla</button><button type="button" class="primary" id="profile-save">Salva</button></div>
+</dialog>
+
+<script>
+"use strict";
+/* ---------- tiny DOM helper (all dynamic text goes through textContent) ---------- */
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  if (attrs) for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const k of kids.flat()) if (k != null && k !== false) el.append(k instanceof Node ? k : document.createTextNode(String(k)));
+  return el;
+}
+const $ = (s) => document.querySelector(s);
+const app = $("#app");
+const today = () => new Date().toISOString().slice(0, 10);
+const str = (v, max = 4000) => (typeof v === "string" ? v : v == null ? "" : String(v)).slice(0, max);
+const arr = (v) => (Array.isArray(v) ? v : []);
+
+/* ---------- capabilities ---------- */
+const cap = (name) => (window.claude && typeof window.claude.use === "function") ? window.claude.use(name).catch(() => null) : Promise.resolve(null);
+let sampleP = cap("sample");
+
+/* ---------- storage: private cloud db when available, browser storage otherwise ---------- */
+const Store = {
+  mode: "local", db: null, base: null,
+  async init() {
+    const [db, user] = await Promise.all([cap("db"), cap("user")]);
+    if (db && user) {
+      try { const id = await user.id(); if (id) { this.db = db; this.base = "data/users/" + id; this.mode = "cloud"; } } catch {}
+    }
+  },
+  lsGet(k) { try { return JSON.parse(localStorage.getItem("lip:" + k) || "null"); } catch { return null; } },
+  lsSet(k, v) { try { v == null ? localStorage.removeItem("lip:" + k) : localStorage.setItem("lip:" + k, JSON.stringify(v)); } catch {} },
+  async get(kind, id) {
+    if (this.mode === "cloud") {
+      const ref = kind === "profile" ? this.db.doc(this.base + "/profile") : this.db.doc(`${this.base}/library/${kind}/${id}`);
+      const s = await ref.get(); return s.exists ? s.data() : null;
+    }
+    return this.lsGet(kind + ":" + (id || ""));
+  },
+  async put(kind, id, data) {
+    if (this.mode === "cloud") {
+      const ref = kind === "profile" ? this.db.doc(this.base + "/profile") : this.db.doc(`${this.base}/library/${kind}/${id}`);
+      return ref.set(data);
+    }
+    this.lsSet(kind + ":" + (id || ""), data);
+    if (kind === "books") { const ids = new Set(this.lsGet("bookIds") || []); ids.add(id); this.lsSet("bookIds", [...ids]); }
+  },
+  async del(kind, id) {
+    if (this.mode === "cloud") return this.db.doc(`${this.base}/library/${kind}/${id}`).delete();
+    this.lsSet(kind + ":" + id, null);
+    if (kind === "books") this.lsSet("bookIds", (this.lsGet("bookIds") || []).filter((x) => x !== id));
+  },
+  async books() {
+    if (this.mode === "cloud") {
+      const q = await this.db.collection(this.base + "/library/books").limit(200).get();
+      return q.docs.map((d) => ({ id: d.id, ...d.data() }));
+    }
+    return (this.lsGet("bookIds") || []).map((id) => ({ id, ...(this.lsGet("books:" + id) || {}) })).filter((b) => b.title);
+  },
+  async lessons(bookId) {
+    if (this.mode === "cloud") {
+      const q = await this.db.collection(this.base + "/library/lessons").where("bookId", "==", bookId).limit(500).get();
+      return q.docs.map((d) => d.data());
+    }
+    const b = this.lsGet("books:" + bookId); const out = [];
+    for (let i = 0; i < (b?.sections?.length || 0); i++) { const l = this.lsGet(`lessons:${bookId}_${i}`); if (l) out.push(l); }
+    return out;
+  },
+};
+
+/* Book text lives on this device (IndexedDB): it can be large, and only lessons need to travel. */
+const Texts = {
+  open() { return new Promise((res, rej) => { const r = indexedDB.open("libro-in-pratica", 1); r.onupgradeneeded = () => r.result.createObjectStore("texts"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
+  async put(id, chunks) { try { const db = await this.open(); await new Promise((res, rej) => { const t = db.transaction("texts", "readwrite"); t.objectStore("texts").put(chunks, id); t.oncomplete = res; t.onerror = () => rej(t.error); }); } catch {} },
+  async get(id) { try { const db = await this.open(); return await new Promise((res) => { const r = db.transaction("texts").objectStore("texts").get(id); r.onsuccess = () => res(r.result || null); r.onerror = () => res(null); }); } catch { return null; } },
+  async del(id) { try { const db = await this.open(); db.transaction("texts", "readwrite").objectStore("texts").delete(id); } catch {} },
+};
+
+/* ---------- file reading ---------- */
+function loadScript(src) {
+  return new Promise((res, rej) => { if (document.querySelector(`script[src="${src}"]`)) return res(); const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = () => rej(new Error("Non riesco a caricare il lettore per questo formato. Controlla la connessione e riprova.")); document.head.append(s); });
+}
+const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
+async function readPdf(file, onProg) {
+  await loadScript(PDFJS + "pdf.worker.min.js"); // sets globalThis.pdfjsWorker → runs on main thread, no cross-origin worker
+  await loadScript(PDFJS + "pdf.min.js");
+  const lib = window.pdfjsLib; lib.GlobalWorkerOptions.workerSrc = PDFJS + "pdf.worker.min.js";
+  const pdf = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  let meta = {}; try { meta = (await pdf.getMetadata()).info || {}; } catch {}
+  const pages = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i); const tc = await page.getTextContent();
+    let s = ""; for (const it of tc.items) { s += it.str; s += it.hasEOL ? "\n" : " "; }
+    pages.push(s.replace(/[ \t]+/g, " ").replace(/ ?\n ?/g, "\n"));
+    onProg(`Leggo la pagina ${i} di ${pdf.numPages}`, i / pdf.numPages);
+  }
+  const text = pages.join("\n\n");
+  if (text.replace(/\s/g, "").length < 500) throw new Error("Questo PDF sembra fatto di immagini scansionate e non contiene testo leggibile. Prova con un EPUB o un PDF con testo selezionabile.");
+  return { title: meta.Title || "", author: meta.Author || "", sections: splitChapters(text) };
+}
+async function readEpub(file, onProg) {
+  await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js");
+  const zip = await JSZip.loadAsync(await file.arrayBuffer());
+  const xml = (s) => new DOMParser().parseFromString(s, "application/xml");
+  const container = xml(await zip.file("META-INF/container.xml").async("string"));
+  const opfPath = container.querySelector("rootfile").getAttribute("full-path");
+  const dir = opfPath.includes("/") ? opfPath.slice(0, opfPath.lastIndexOf("/") + 1) : "";
+  const opf = xml(await zip.file(opfPath).async("string"));
+  const byTag = (t) => opf.getElementsByTagNameNS("*", t)[0]?.textContent?.trim() || "";
+  const manifest = {}; for (const it of opf.getElementsByTagNameNS("*", "item")) manifest[it.getAttribute("id")] = it.getAttribute("href");
+  const spine = [...opf.getElementsByTagNameNS("*", "itemref")].map((r) => manifest[r.getAttribute("idref")]).filter(Boolean);
+  const sections = [];
+  for (let i = 0; i < spine.length; i++) {
+    const path = decodeURIComponent(dir + spine[i].split("#")[0]);
+    const f = zip.file(path); if (!f) continue;
+    const doc = new DOMParser().parseFromString(await f.async("string"), "text/html");
+    doc.querySelectorAll("script,style").forEach((n) => n.remove());
+    doc.querySelectorAll("p,div,h1,h2,h3,h4,li,br").forEach((n) => n.append("\n"));
+    const title = (doc.querySelector("h1,h2,h3")?.textContent || "").trim().replace(/\s+/g, " ").slice(0, 120);
+    const text = (doc.body?.textContent || "").replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n\n").trim();
+    if (text) sections.push({ title, text });
+    onProg(`Leggo il capitolo ${i + 1} di ${spine.length}`, (i + 1) / spine.length);
+  }
+  return { title: byTag("title"), author: byTag("creator"), sections };
+}
+async function readTxt(file) { return { title: "", author: "", sections: splitChapters(await file.text()) }; }
+
+function splitChapters(text) {
+  const lines = text.split("\n"); const heads = [];
+  const re = /^\s*(capitolo|chapter|parte|part|cap\.|lezione|sezione)\s+([0-9]+|[ivxlcdm]+|primo|secondo|terzo|uno|due|tre|one|two|three)\b/i;
+  lines.forEach((l, i) => { if (l.length < 90 && re.test(l)) heads.push(i); });
+  if (heads.length < 3) return [{ title: "", text }];
+  const out = [];
+  if (heads[0] > 0) out.push({ title: "", text: lines.slice(0, heads[0]).join("\n") });
+  heads.forEach((s, k) => out.push({ title: lines[s].trim().slice(0, 120), text: lines.slice(s, heads[k + 1] ?? lines.length).join("\n") }));
+  return out;
+}
+
+/* Turn raw sections into lesson-sized pieces: merge tiny ones, split huge ones, at most ~40 lessons. */
+function toLessons(sections) {
+  const total = sections.reduce((a, s) => a + s.text.length, 0);
+  const target = Math.max(18000, Math.ceil(total / 40)), min = Math.min(5000, target / 3);
+  const merged = [];
+  for (const s of sections) {
+    const last = merged[merged.length - 1];
+    if (last && (last.text.length < min)) { last.text += "\n\n" + s.text; last.title = last.title || s.title; }
+    else merged.push({ title: s.title, text: s.text });
+  }
+  if (merged.length > 1 && merged[merged.length - 1].text.length < min) { const t = merged.pop(); merged[merged.length - 1].text += "\n\n" + t.text; }
+  const out = [];
+  for (const s of merged) {
+    if (s.text.length <= target * 1.6) { out.push(s); continue; }
+    const parts = Math.ceil(s.text.length / target), size = Math.ceil(s.text.length / parts);
+    let pos = 0;
+    for (let p = 0; p < parts; p++) {
+      let end = p === parts - 1 ? s.text.length : s.text.indexOf("\n", pos + size);
+      if (end < 0) end = s.text.length;
+      out.push({ title: s.title ? `${s.title} (${p + 1}/${parts})` : "", text: s.text.slice(pos, end) });
+      pos = end;
+    }
+  }
+  return out.filter((s) => s.text.trim().length > 300);
+}
+
+function hashId(s) { let a = 5381, b = 52711; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = (a * 33) ^ c; b = (b * 33) ^ c; } return "b" + (a >>> 0).toString(36) + (b >>> 0).toString(36); }
+
+/* ---------- Claude ---------- */
+async function getSample() { const s = await sampleP; if (!s) throw { code: "unavailable" }; return s; }
+function errText(e) {
+  const c = e && e.code;
+  if (c === "unavailable") return "Per generare le lezioni apri questa pagina su claude.ai con il tuo account.";
+  if (c === "not_granted") return "Serve il permesso di usare Claude da questa pagina. Riapri la pagina e consenti l’accesso quando te lo chiede.";
+  if (c === "rate_limited") return "Hai raggiunto il limite di utilizzo per ora. Riprova tra un po’.";
+  if (c === "invalid_json") return "La risposta è arrivata incompleta. Riprova.";
+  return (e && e.message) || "Qualcosa non ha funzionato. Riprova.";
+}
+const STYLE = "Rispondi sempre in italiano, con tono caldo e concreto, da coach pratico. Niente frasi generiche: azioni specifiche, osservabili, fattibili oggi.";
+const profileLine = () => (state.profile ? `\nCHI È LA PERSONA (personalizza gli esempi su di lei): ${state.profile}` : "");
+
+async function analyzeBook(meta, lessons) {
+  let overview = lessons.map((l, i) => `### SEZIONE ${i + 1}${l.title ? " – " + l.title : ""}\n${l.text.slice(0, Math.max(800, Math.floor(110000 / lessons.length)))}`).join("\n\n");
+  const prompt = `${STYLE}
+Ti do estratti di un libro diviso in ${lessons.length} sezioni (per ogni sezione solo l'inizio). Titolo nei metadati: "${meta.title || "sconosciuto"}", autore: "${meta.author || "sconosciuto"}".
+Restituisci SOLO JSON con questa forma:
+{"titolo": string, "autore": string, "tesi": string (2 frasi: cosa promette il libro e come), "principi": [{"nome": string (max 5 parole), "sintesi": string (1 frase)}] (da 5 a 8), "titoliLezioni": [string] (esattamente ${lessons.length} titoli brevi, max 7 parole, uno per sezione nell'ordine, che dicano cosa si impara ad applicare)}
+Se una sezione è prefazione, indice o ringraziamenti, dalle comunque un titolo come "Introduzione".
+
+${overview}`;
+  const s = await getSample();
+  return s.json(prompt, { modelTier: "default" });
+}
+
+async function generateLesson(book, idx, text) {
+  const prompt = `${STYLE}${profileLine()}
+LIBRO: "${book.title}" di ${book.author || "autore sconosciuto"}. Tesi: ${book.thesis}
+Principi del libro: ${arr(book.principles).map((p) => p.nome).join("; ")}
+Questa è la lezione ${idx + 1} di ${book.sections.length}: "${book.sections[idx].title}".
+Leggi il testo della sezione qui sotto e trasformalo in una lezione per applicarlo nella vita di tutti i giorni.
+Restituisci SOLO JSON:
+{"ideaChiave": string (1 frase memorabile), "spiegazione": string (1 paragrafo di 80-120 parole che spiega l'idea con parole semplici), "citazione": string (una frase breve presa davvero dal testo, max 200 caratteri, nella lingua originale; stringa vuota se non adatta),
+"applicazioni": [{"ambito": "Lavoro"|"Relazioni"|"Te stesso"|"Soldi"|"Salute"|"Famiglia", "situazione": string (una situazione quotidiana concreta), "cosaFare": string (cosa fare esattamente)}] (esattamente 3, ambiti diversi),
+"sfida": {"titolo": string, "durata": string (es. "10 minuti"), "passi": [string] (3-4 passi pratici da fare oggi)},
+"domanda": string (una domanda di riflessione per la sera), "errore": string (l'errore più comune quando si prova ad applicarla, e come evitarlo, 1-2 frasi)}
+
+TESTO DELLA SEZIONE:
+${text.slice(0, 70000)}`;
+  const s = await getSample();
+  return s.json(prompt, { modelTier: "default" });
+}
+
+/* ---------- state ---------- */
+const state = { view: "home", books: [], book: null, lessons: {}, idx: 0, profile: "", chat: [], busy: false, uploadMsg: null, uploadErr: false, uploadPct: 0 };
+
+/* ---------- home ---------- */
+function renderHome() {
+  state.view = "home";
+  const drop = h("div", { class: "drop", id: "drop" },
+    h("h3", null, "Carica il tuo libro"),
+    h("p", { class: "formats" }, "EPUB, PDF con testo, TXT o Markdown. Il file resta sul tuo dispositivo: a Claude arrivano solo i passaggi da studiare."),
+    h("label", { class: "btn primary", for: "file", style: "background:var(--teal);color:var(--paper);border-color:var(--teal)" }, "Scegli un file"),
+    h("input", { type: "file", id: "file", accept: ".epub,.pdf,.txt,.md,application/pdf,application/epub+zip,text/plain", hidden: true, onchange: (e) => e.target.files[0] && handleFile(e.target.files[0]) }),
+    h("p", { class: "formats" }, "oppure trascinalo qui"));
+  ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+  drop.addEventListener("drop", (e) => { const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
+
+  const prog = h("div", { class: "progress-box", id: "upload-progress", hidden: !state.uploadMsg },
+    h("div", { class: "bar" }, h("i", { id: "upbar", style: `width:${Math.round(state.uploadPct * 100)}%` })),
+    h("p", { class: "msg" + (state.uploadErr ? " err" : ""), id: "upmsg" }, state.uploadMsg || ""));
+
+  const libSection = h("section", { id: "library-section" });
+  app.replaceChildren(
+    h("section", { class: "hero" },
+      h("div", null,
+        h("h1", null, "Dal libro letto alla ", h("span", { class: "mark" }, "vita cambiata"), "."),
+        h("p", { class: "lead" }, "Carichi un libro e lo trasformiamo in un percorso a lezioni: ogni giorno un’idea, tre modi concreti per usarla e una piccola sfida da fare prima di sera."),
+        drop, prog,
+        h("ol", { class: "steps" },
+          h("li", null, h("span", null, h("b", null, "Carichi il libro. "), "Lo dividiamo in lezioni seguendo i capitoli.")),
+          h("li", null, h("span", null, h("b", null, "Claude lo studia. "), "Ricava la tesi e i principi da mettere in pratica.")),
+          h("li", null, h("span", null, h("b", null, "Una lezione al giorno. "), "Idea chiave, esempi sulla tua vita, sfida del giorno.")),
+          h("li", null, h("span", null, h("b", null, "Diario e coach. "), "Racconti com’è andata e ricevi un consiglio su come migliorare.")))),
+      exampleLesson()),
+    libSection);
+  renderLibrary();
+}
+
+function exampleLesson() {
+  return h("aside", { class: "card lesson", "aria-label": "Esempio di lezione" },
+    h("div", { style: "display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap" },
+      h("span", { class: "example-tag" }, "Esempio di lezione"), h("span", { class: "label" }, "Lezione 3 di 18")),
+    h("div", { class: "section" }, h("span", { class: "label" }, "Idea chiave"),
+      h("p", { class: "idea" }, "Le abitudini cambiano quando cambi l’ambiente, non quando aumenti la forza di volontà.")),
+    h("div", { class: "app" }, h("span", { class: "where" }, "A casa"),
+      h("p", null, "La sera finisci sempre sul divano col telefono. Stasera lascialo in carica in cucina e metti il libro sul cuscino.")),
+    h("div", { class: "challenge" },
+      h("div", { class: "meta" }, h("h3", null, "Sfida: sposta un oggetto"), h("span", { class: "pill now" }, "5 minuti")),
+      h("ol", null, h("li", null, "Scegli un’abitudine che vuoi rendere più facile."), h("li", null, "Metti l’oggetto che serve dove lo vedrai per primo."), h("li", null, "Stasera scrivi nel diario se l’hai usato."))));
+}
+
+async function renderLibrary() {
+  const sec = $("#library-section"); if (!sec) return;
+  if (!storeReady) { sec.replaceChildren(h("span", { class: "label" }, "I tuoi libri"), h("div", { class: "skeleton", style: "margin-top:14px;max-width:320px" }, h("i"), h("i", { style: "width:60%" }))); return; }
+  const books = state.books.slice().sort((a, b) => (b.lastOpened || "").localeCompare(a.lastOpened || ""));
+  if (!books.length) { sec.replaceChildren(h("span", { class: "label" }, "I tuoi libri"), h("p", { class: "msg", style: "margin-top:8px" }, "Ancora nessun libro. Il primo che carichi comparirà qui, con i tuoi progressi.")); return; }
+  sec.replaceChildren(h("span", { class: "label" }, "I tuoi libri"),
+    h("div", { class: "library" }, books.map((b) => {
+      const done = b.doneCount || 0, total = b.sections?.length || 0;
+      return h("button", { class: "card book-card", type: "button", onclick: () => openBook(b.id) },
+        h("span", { class: "ttl" }, b.title || "Senza titolo"),
+        h("span", { class: "au" }, b.author || ""),
+        h("div", { class: "bar" }, h("i", { style: `width:${total ? Math.round((done / total) * 100) : 0}%` })),
+        h("span", { class: "msg" }, `${done} di ${total} lezioni messe in pratica`));
+    })));
+}
+
+function setUpload(msg, pct, err = false) {
+  state.uploadMsg = msg; state.uploadPct = pct ?? state.uploadPct; state.uploadErr = err;
+  const box = $("#upload-progress"); if (!box) return;
+  box.hidden = !msg; $("#upmsg").textContent = msg || ""; $("#upmsg").className = "msg" + (err ? " err" : "");
+  $("#upbar").style.width = Math.round(state.uploadPct * 100) + "%";
+}
+
+async function handleFile(file) {
+  if (state.busy) return; state.busy = true;
+  try {
+    const ext = (file.name.split(".").pop() || "").toLowerCase();
+    setUpload("Apro il file…", 0.02);
+    const onProg = (m, p) => setUpload(m, 0.05 + p * 0.45);
+    let parsed;
+    if (ext === "pdf") parsed = await readPdf(file, onProg);
+    else if (ext === "epub") parsed = await readEpub(file, onProg);
+    else if (["txt", "md", "markdown", "text"].includes(ext) || file.type.startsWith("text/")) parsed = await readTxt(file);
+    else throw new Error("Formato non supportato. Usa un file EPUB, PDF, TXT o MD.");
+    const lessons = toLessons(parsed.sections);
+    if (!lessons.length) throw new Error("Non ho trovato abbastanza testo in questo file.");
+    const id = hashId(file.name + "|" + file.size);
+    setUpload(`Ho diviso il libro in ${lessons.length} lezioni. Claude lo sta studiando…`, 0.6);
+    await Texts.put(id, lessons.map((l) => l.text));
+    const a = await analyzeBook(parsed, lessons);
+    const titles = arr(a?.titoliLezioni);
+    const book = {
+      title: str(a?.titolo || parsed.title || file.name.replace(/\.[^.]+$/, ""), 200), author: str(a?.autore || parsed.author, 200),
+      thesis: str(a?.tesi, 800), principles: arr(a?.principi).slice(0, 8).map((p) => ({ nome: str(p?.nome, 80), sintesi: str(p?.sintesi, 300) })),
+      sections: lessons.map((l, i) => ({ title: str(titles[i] || l.title || `Parte ${i + 1}`, 140), chars: l.text.length })),
+      fileName: str(file.name, 200), createdAt: new Date().toISOString(), lastOpened: new Date().toISOString(), doneCount: 0, current: 0,
+    };
+    setUpload("Fatto. Apro la prima lezione…", 1);
+    await Store.put("books", id, book);
+    state.books = state.books.filter((b) => b.id !== id).concat([{ id, ...book }]);
+    state.busy = false; state.uploadMsg = null;
+    openBook(id);
+  } catch (e) {
+    state.busy = false; setUpload(errText(e), state.uploadPct, true);
+  }
+}
+
+/* ---------- book view ---------- */
+async function openBook(id) {
+  const b = state.books.find((x) => x.id === id); if (!b) return;
+  state.book = b; state.view = "book"; state.lessons = {}; state.chat = [];
+  app.replaceChildren(h("div", { class: "skeleton card" }, h("i", { style: "width:40%" }), h("i"), h("i", { style: "width:80%" })));
+  try { for (const l of await Store.lessons(id)) state.lessons[l.n] = l; } catch {}
+  const firstOpen = b.sections.findIndex((_, i) => !state.lessons[i]?.done);
+  state.idx = Math.min(b.current ?? (firstOpen < 0 ? 0 : firstOpen), b.sections.length - 1);
+  b.lastOpened = new Date().toISOString(); saveBook();
+  renderBook();
+}
+function saveBook() { const { id, ...rest } = state.book; Store.put("books", id, rest).catch(() => {}); }
+function lessonDoc(i) { return state.lessons[i] || (state.lessons[i] = { bookId: state.book.id, n: i }); }
+function saveLesson(i) { const l = lessonDoc(i); l.updatedAt = new Date().toISOString(); return Store.put("lessons", `${state.book.id}_${i}`, l).catch(() => {}); }
+
+function streak() {
+  const days = new Set(Object.values(state.lessons).map((l) => l.doneAt).filter(Boolean));
+  let n = 0; const d = new Date();
+  if (!days.has(d.toISOString().slice(0, 10))) d.setDate(d.getDate() - 1);
+  while (days.has(d.toISOString().slice(0, 10))) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+
+function renderBook() {
+  const b = state.book, total = b.sections.length;
+  const done = Object.values(state.lessons).filter((l) => l.done).length;
+  const todayIdx = b.sections.findIndex((_, i) => !state.lessons[i]?.done);
+  app.replaceChildren(
+    h("section", { class: "book-head" },
+      h("div", { style: "display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start" },
+        h("div", { style: "min-width:0" }, h("h1", null, b.title), b.author && h("p", { class: "msg", style: "margin-top:4px" }, b.author)),
+        deleteControl()),
+      b.thesis && h("p", { class: "thesis" }, b.thesis),
+      b.principles?.length && h("div", { class: "principles", "aria-label": "Principi del libro" }, b.principles.map((p) => h("span", { class: "chip", title: p.sintesi }, p.nome))),
+      h("div", { class: "stats", style: "margin-top:8px" },
+        h("span", null, h("strong", null, `${done}/${total}`), "lezioni messe in pratica"),
+        h("div", { class: "bar" }, h("i", { style: `width:${Math.round((done / total) * 100)}%` })),
+        h("span", null, h("strong", null, String(streak())), streak() === 1 ? "giorno di fila" : "giorni di fila"),
+        todayIdx >= 0 && todayIdx !== state.idx && h("button", { type: "button", onclick: () => selectLesson(todayIdx) }, "Vai alla lezione di oggi"))),
+    h("div", { class: "desk" },
+      h("nav", { class: "path", "aria-label": "Percorso" }, h("div", { class: "label" }, "Il percorso"),
+        b.sections.map((s, i) => {
+          const l = state.lessons[i];
+          return h("button", { type: "button", class: "lesson-item" + (i === state.idx ? " active" : ""), onclick: () => selectLesson(i), "aria-current": i === state.idx ? "step" : null },
+            h("span", { class: "n" }, String(i + 1).padStart(2, "0")), h("span", { class: "t", title: s.title }, s.title),
+            h("span", { class: "dot" + (l?.done ? " done" : l?.content ? " seen" : ""), "aria-label": l?.done ? "fatta" : l?.content ? "aperta" : "da fare" }));
+        })),
+      h("article", { id: "lesson-pane", style: "min-width:0" })));
+  renderLesson();
+}
+
+function deleteControl() {
+  const box = h("div", { class: "confirm" });
+  const ask = () => box.replaceChildren(h("span", null, "Eliminare il libro e i tuoi progressi?"),
+    h("button", { type: "button", onclick: () => box.replaceChildren(btn) }, "Annulla"),
+    h("button", { type: "button", class: "danger", onclick: deleteBook }, "Elimina"));
+  const btn = h("button", { type: "button", class: "ghost", onclick: ask }, "Elimina libro");
+  box.append(btn); return box;
+}
+async function deleteBook() {
+  const b = state.book;
+  for (let i = 0; i < b.sections.length; i++) if (state.lessons[i]) await Store.del("lessons", `${b.id}_${i}`).catch(() => {});
+  await Store.del("books", b.id).catch(() => {}); await Texts.del(b.id);
+  state.books = state.books.filter((x) => x.id !== b.id); state.book = null; renderHome();
+}
+
+function selectLesson(i) {
+  state.idx = i; state.chat = state.lessons[i]?.chat ? [...state.lessons[i].chat] : [];
+  state.book.current = i; saveBook(); renderBook();
+  $("#lesson-pane")?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+}
+
+async function renderLesson() {
+  const pane = $("#lesson-pane"); const i = state.idx, b = state.book, l = lessonDoc(i);
+  if (!state.chat.length && l.chat) state.chat = [...l.chat];
+  const head = h("div", { style: "display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap" },
+    h("span", { class: "label" }, `Lezione ${i + 1} di ${b.sections.length}`),
+    l.done ? h("span", { class: "pill done" }, "Messa in pratica") : h("span", { class: "pill now" }, "Da fare oggi"));
+  if (l.content) { pane.replaceChildren(lessonCard(head, l)); return; }
+
+  pane.replaceChildren(h("div", { class: "card lesson" }, head, h("h2", null, b.sections[i].title),
+    h("p", { class: "msg", id: "gen-msg" }, "Claude sta preparando la lezione su questa parte del libro…"),
+    h("div", { class: "skeleton" }, h("i", { style: "width:70%" }), h("i"), h("i"), h("i", { style: "width:50%" }))));
+  const chunks = await Texts.get(b.id);
+  if (!chunks || !chunks[i]) {
+    pane.replaceChildren(h("div", { class: "card lesson" }, head, h("h2", null, b.sections[i].title),
+      h("p", null, "Il testo del libro è salvato solo sul dispositivo dove l’hai caricato. Per generare questa lezione qui, ricarica lo stesso file."),
+      h("label", { class: "btn", for: "refile" }, "Ricarica il file"),
+      h("input", { type: "file", id: "refile", hidden: true, accept: ".epub,.pdf,.txt,.md", onchange: (e) => reattach(e.target.files[0]) }),
+      h("p", { class: "msg", id: "gen-msg" })));
+    return;
+  }
+  try {
+    const c = await generateLesson(b, i, chunks[i]);
+    if (state.idx !== i || state.book !== b) return;
+    l.content = sanitizeLesson(c); await saveLesson(i);
+    renderBook();
+  } catch (e) {
+    if (state.idx !== i) return;
+    const m = $("#gen-msg"); if (m) { m.textContent = errText(e); m.className = "msg err"; m.after(h("button", { type: "button", onclick: renderLesson }, "Riprova")); }
+    pane.querySelector(".skeleton")?.remove();
+  }
+}
+async function reattach(file) {
+  if (!file) return; const m = $("#gen-msg"); m.textContent = "Leggo il file…"; m.className = "msg";
+  try {
+    const ext = file.name.split(".").pop().toLowerCase();
+    const p = ext === "pdf" ? await readPdf(file, (t) => (m.textContent = t)) : ext === "epub" ? await readEpub(file, (t) => (m.textContent = t)) : await readTxt(file);
+    const ls = toLessons(p.sections);
+    if (ls.length !== state.book.sections.length) throw new Error("Questo file non corrisponde al libro: le parti non coincidono. Usa lo stesso file del primo caricamento.");
+    await Texts.put(state.book.id, ls.map((x) => x.text)); renderLesson();
+  } catch (e) { m.textContent = errText(e); m.className = "msg err"; }
+}
+function sanitizeLesson(c) {
+  return {
+    ideaChiave: str(c?.ideaChiave, 400), spiegazione: str(c?.spiegazione, 2000), citazione: str(c?.citazione, 300),
+    applicazioni: arr(c?.applicazioni).slice(0, 3).map((a) => ({ ambito: str(a?.ambito, 30), situazione: str(a?.situazione, 400), cosaFare: str(a?.cosaFare, 500) })),
+    sfida: { titolo: str(c?.sfida?.titolo, 120), durata: str(c?.sfida?.durata, 40), passi: arr(c?.sfida?.passi).slice(0, 5).map((p) => str(p, 300)) },
+    domanda: str(c?.domanda, 400), errore: str(c?.errore, 500),
+  };
+}
+
+function lessonCard(head, l) {
+  const c = l.content, i = state.idx;
+  const doneBtn = h("button", { type: "button", class: l.done ? "" : "primary", onclick: async () => {
+    l.done = !l.done; l.doneAt = l.done ? today() : null; await saveLesson(i);
+    state.book.doneCount = Object.values(state.lessons).filter((x) => x.done).length; saveBook(); renderBook();
+  } }, l.done ? "Segna come non fatta" : "Ho fatto la sfida");
+
+  return h("div", { class: "card lesson" }, head,
+    h("h2", null, state.book.sections[i].title),
+    h("div", { class: "section" }, h("span", { class: "label" }, "Idea chiave"), h("p", { class: "idea" }, h("span", { class: "mark" }, c.ideaChiave))),
+    c.spiegazione && h("p", { class: "body" }, c.spiegazione),
+    c.citazione && h("blockquote", { class: "quote", style: "margin:0" }, `“${c.citazione}”`),
+    c.applicazioni.length && h("div", { class: "section" }, h("span", { class: "label" }, "Come usarla nella tua giornata"),
+      h("div", { class: "apps" }, c.applicazioni.map((a) => h("div", { class: "app" }, h("span", { class: "where" }, a.ambito), h("p", null, h("b", null, a.situazione)), h("p", null, a.cosaFare))))),
+    h("div", { class: "challenge" },
+      h("div", { class: "meta" }, h("h3", null, "Sfida di oggi: " + (c.sfida.titolo || "mettila in pratica")), c.sfida.durata && h("span", { class: "pill now" }, c.sfida.durata)),
+      h("ol", null, c.sfida.passi.map((p) => h("li", null, p))),
+      h("div", null, doneBtn)),
+    c.errore && h("p", { class: "pitfall" }, h("b", null, "Attenzione: "), c.errore),
+    journal(l), coach(l),
+    h("div", { style: "display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap" },
+      i > 0 ? h("button", { type: "button", onclick: () => selectLesson(i - 1) }, "← Lezione precedente") : h("span"),
+      i < state.book.sections.length - 1 && h("button", { type: "button", onclick: () => selectLesson(i + 1) }, "Lezione successiva →")));
+}
+
+function journal(l) {
+  const i = state.idx;
+  const ta = h("textarea", { id: "journal-" + i, rows: "4", placeholder: "Cosa hai provato? Cosa è successo? Cosa è stato difficile?" });
+  ta.value = l.journal || "";
+  let t; ta.addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => { l.journal = ta.value.slice(0, 8000); saveLesson(i); saved.textContent = "Salvato"; }, 700); saved.textContent = ""; });
+  const saved = h("span", { class: "msg" });
+  const fb = h("div", { class: "feedback", hidden: !l.feedback }, l.feedback || "");
+  const btn = h("button", { type: "button", onclick: async () => {
+    if (!ta.value.trim()) { saved.textContent = "Scrivi prima com’è andata."; return; }
+    btn.disabled = true; fb.hidden = false; fb.textContent = "Claude sta leggendo il tuo diario…";
+    l.journal = ta.value.slice(0, 8000);
+    try {
+      const s = await getSample(); const c = l.content;
+      const r = await s(`${STYLE}${profileLine()}
+Sei il coach del libro "${state.book.title}". Lezione: "${c.ideaChiave}". Sfida proposta: ${c.sfida.titolo} – ${c.sfida.passi.join(" / ")}.
+Domanda di riflessione: ${c.domanda}
+Ecco cosa ha scritto la persona nel suo diario dopo aver provato:
+"""${l.journal}"""
+Rispondi in 90-140 parole, testo semplice senza markdown: 1) riconosci cosa ha fatto bene in modo specifico, 2) un aggiustamento concreto per la prossima volta, 3) un micro-passo per domani.`,
+        { cache: false, onText: ({ text }) => { fb.textContent = text; } });
+      l.feedback = str(r.text, 3000); fb.textContent = l.feedback; await saveLesson(i);
+    } catch (e) { fb.textContent = errText(e); }
+    btn.disabled = false;
+  } }, "Chiedi un consiglio sul diario");
+  return h("div", { class: "section" },
+    h("span", { class: "label" }, "Diario di stasera"),
+    l.content.domanda && h("p", { style: "font-family:var(--f-read)" }, l.content.domanda),
+    ta, h("div", { class: "journal-actions" }, btn, saved), fb);
+}
+
+function coach(l) {
+  const i = state.idx;
+  const log = h("div", { class: "chat-log", "aria-live": "polite" });
+  const paint = () => { log.replaceChildren(...state.chat.map((m) => h("div", { class: "bubble " + (m.role === "user" ? "me" : "ai") }, m.content))); log.scrollTop = log.scrollHeight; };
+  paint();
+  const ta = h("textarea", { id: "coach-" + i, rows: "1", placeholder: "Racconta una situazione reale e chiedi come applicare l’idea…" });
+  const send = async (q) => {
+    q = (q ?? ta.value).trim(); if (!q || sendBtn.disabled) return;
+    ta.value = ""; sendBtn.disabled = true;
+    state.chat.push({ role: "user", content: q.slice(0, 4000) });
+    const ai = { role: "assistant", content: "…" }; state.chat.push(ai); paint();
+    const bubble = log.lastChild;
+    try {
+      const s = await getSample(); const c = l.content; const chunks = await Texts.get(state.book.id);
+      const ctx = `${STYLE}${profileLine()}
+Sei il coach personale che aiuta a applicare il libro "${state.book.title}" (${state.book.author}) nella vita reale. Tesi: ${state.book.thesis}
+Principi: ${arr(state.book.principles).map((p) => p.nome + ": " + p.sintesi).join(" | ")}
+Lezione attuale: "${state.book.sections[i].title}". Idea chiave: ${c.ideaChiave}. ${c.spiegazione}
+${chunks?.[i] ? "Testo della sezione, da usare per risposte fedeli al libro:\n" + chunks[i].slice(0, 40000) : ""}
+Rispondi in modo breve (massimo 150 parole), testo semplice senza markdown, legando sempre la risposta a cosa dice il libro e chiudendo con un passo concreto. Se la domanda riguarda salute o rischi seri, suggerisci con gentilezza di sentire un professionista.`;
+      const hist = state.chat.slice(0, -1).slice(-12);
+      const msgs = [{ role: "user", content: ctx + "\n\nPrima domanda della persona:\n" + hist[0].content }, ...hist.slice(1)];
+      const r = await s(msgs, { cache: false, onText: ({ text }) => { bubble.textContent = text; log.scrollTop = log.scrollHeight; } });
+      ai.content = str(r.text, 4000);
+      l.chat = state.chat.slice(-20); saveLesson(i);
+    } catch (e) { ai.content = errText(e); state.chat.splice(-2, 2); paint(); log.append(h("div", { class: "bubble ai" }, ai.content)); ta.value = q; }
+    sendBtn.disabled = false; if (ai.content !== "…") bubble.textContent = ai.content;
+  };
+  ta.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
+  const sendBtn = h("button", { type: "button", class: "primary", onclick: () => send() }, "Invia");
+  const sugg = ["Come la applico al lavoro domani?", "Non ci sono riuscito, cosa cambio?", "Fammi un esempio con una discussione in famiglia"];
+  return h("div", { class: "section chat" },
+    h("span", { class: "label" }, "Chiedi al coach"),
+    !state.chat.length && h("div", { class: "suggest" }, sugg.map((s) => h("button", { type: "button", onclick: () => send(s) }, s))),
+    log, h("div", { class: "chat-form" }, ta, sendBtn));
+}
+
+/* ---------- profile ---------- */
+const dlg = $("#profile-dlg");
+$("#open-profile").addEventListener("click", () => { $("#profile-text").value = state.profile; dlg.showModal(); });
+$("#profile-cancel").addEventListener("click", () => dlg.close());
+$("#profile-save").addEventListener("click", async () => { state.profile = $("#profile-text").value.trim().slice(0, 2000); dlg.close(); await Store.put("profile", null, { text: state.profile }).catch(() => {}); });
+$("#go-home").addEventListener("click", () => { state.book = null; renderHome(); });
+
+/* ---------- boot ---------- */
+let storeReady = false;
+renderHome();
+(async () => {
+  await Store.init();
+  try { state.books = await Store.books(); } catch { state.books = []; }
+  try { state.profile = (await Store.get("profile"))?.text || ""; } catch {}
+  storeReady = true;
+  $("#store-note").textContent = Store.mode === "cloud" ? "Progressi salvati nel tuo account" : "Progressi salvati in questo browser";
+  if (state.view === "home") renderLibrary();
+})();
+</script>
