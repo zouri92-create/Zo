@@ -294,7 +294,48 @@ async function readPdf(file, onProg) {
   }
   const text = pages.join("\n\n");
   if (text.replace(/\s/g, "").length < 500) throw new Error("Questo PDF sembra fatto di immagini scansionate e non contiene testo leggibile. Prova con un EPUB o un PDF con testo selezionabile.");
-  return { title: meta.Title || "", author: meta.Author || "", sections: splitChapters(text) };
+  const byOutline = await outlineSections(pdf, pages);
+  return { title: meta.Title || "", author: meta.Author || "", sections: byOutline || splitChapters(text) };
+}
+
+/* Use the PDF's bookmarks (chapters and sub-chapters) to cut the text where each one starts. */
+async function outlineSections(pdf, pages) {
+  let ol; try { ol = await pdf.getOutline(); } catch { return null; }
+  if (!ol || !ol.length) return null;
+  const marks = [];
+  const walk = async (items, depth) => {
+    for (const it of items) {
+      try {
+        let d = it.dest; if (typeof d === "string") d = await pdf.getDestination(d);
+        if (Array.isArray(d) && d[0] != null) {
+          const pi = typeof d[0] === "number" ? d[0] : await pdf.getPageIndex(d[0]);
+          const title = (it.title || "").replace(/\s+/g, " ").trim();
+          if (title) marks.push({ title, page: pi, depth });
+        }
+      } catch {}
+      if (it.items?.length && depth < 3) await walk(it.items, depth + 1);
+    }
+  };
+  await walk(ol, 0);
+  if (marks.length < 3) return null;
+  const offs = []; let text = "";
+  pages.forEach((p, i) => { offs[i] = text.length; text += p + "\n\n"; });
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pts = marks.map((m) => {
+    const start = offs[m.page] ?? 0, end = offs[m.page + 1] ?? text.length;
+    const words = m.title.replace(/^(supporting idea|idea di supporto)\s*[:.\-–—]?\s*/i, "").split(/\s+/).filter(Boolean).slice(0, 4);
+    let k = -1; if (words.length) { try { k = text.slice(start, end).search(new RegExp(words.map(esc).join("\\s+"), "i")); } catch {} }
+    // step back to the start of the line so "Supporting Idea:" labels stay with their section
+    let pos = start + Math.max(0, k); if (k > 0) { const nl = text.lastIndexOf("\n", pos - 1); if (nl >= start && pos - nl < 60) pos = nl + 1; }
+    return { ...m, pos };
+  }).sort((a, b) => a.pos - b.pos || a.depth - b.depth);
+  const out = []; if (pts[0].pos > 0) out.push({ title: "", text: text.slice(0, pts[0].pos), level: 1 });
+  pts.forEach((m, i) => {
+    const next = pts.slice(i + 1).find((x) => x.pos > m.pos);
+    if (i > 0 && pts[i - 1].pos === m.pos) return; // same spot: keep the first (outer) bookmark
+    out.push({ title: m.title.slice(0, 120), text: text.slice(m.pos, next ? next.pos : text.length), level: m.depth === 0 ? 1 : 2, keep: SUPPORT_RE.test(m.title) });
+  });
+  return out;
 }
 async function readEpub(file, onProg) {
   await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js");
@@ -313,10 +354,21 @@ async function readEpub(file, onProg) {
     const f = zip.file(path); if (!f) continue;
     const doc = new DOMParser().parseFromString(await f.async("string"), "text/html");
     doc.querySelectorAll("script,style").forEach((n) => n.remove());
+    // mark every heading so the chapter can be cut into its sub-sections (and "Supporting Idea" boxes)
+    doc.querySelectorAll("h1,h2,h3,h4").forEach((el) => { el.prepend("\n\u0001" + (/h[12]/i.test(el.tagName) ? "1" : "2")); el.append("\u0002\n"); });
     doc.querySelectorAll("p,div,h1,h2,h3,h4,li,br").forEach((n) => n.append("\n"));
-    const title = (doc.querySelector("h1,h2,h3")?.textContent || "").trim().replace(/\s+/g, " ").slice(0, 120);
-    const text = (doc.body?.textContent || "").replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n\n").trim();
-    if (text) sections.push({ title, text });
+    const clean = (t) => t.replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n\n").trim();
+    const parts = (doc.body?.textContent || "").split("\u0001");
+    let first = true;
+    const pre = clean(parts[0]);
+    if (pre.length > 40) { sections.push({ title: "", text: pre, level: 1 }); first = false; }
+    for (const part of parts.slice(1)) {
+      const lvl = part[0] === "1" ? 1 : 2, cut = part.indexOf("\u0002");
+      const title = clean(part.slice(1, cut < 0 ? 1 : cut)).replace(/\s+/g, " ").slice(0, 120);
+      const text = clean(title + "\n" + part.slice(cut < 0 ? 1 : cut + 1));
+      if (!text) continue;
+      sections.push({ title, text, level: first ? 1 : lvl, keep: SUPPORT_RE.test(title) }); first = false;
+    }
     onProg(`Leggo il capitolo ${i + 1} di ${spine.length}`, (i + 1) / spine.length);
   }
   return { title: byTag("title"), author: byTag("creator"), sections };
@@ -327,24 +379,60 @@ function splitChapters(text) {
   const lines = text.split("\n"); const heads = [];
   const re = /^\s*(capitolo|chapter|parte|part|cap\.|lezione|sezione)\s+([0-9]+|[ivxlcdm]+|primo|secondo|terzo|uno|due|tre|one|two|three)\b/i;
   lines.forEach((l, i) => { if (l.length < 90 && re.test(l)) heads.push(i); });
-  if (heads.length < 3) return [{ title: "", text }];
+  if (heads.length < 3) return [{ title: "", text, level: 1 }];
   const out = [];
-  if (heads[0] > 0) out.push({ title: "", text: lines.slice(0, heads[0]).join("\n") });
-  heads.forEach((s, k) => out.push({ title: lines[s].trim().slice(0, 120), text: lines.slice(s, heads[k + 1] ?? lines.length).join("\n") }));
+  if (heads[0] > 0) out.push({ title: "", text: lines.slice(0, heads[0]).join("\n"), level: 1 });
+  heads.forEach((s, k) => out.push({ title: (lines[s].trim() + (lines[s].trim().length < 16 && lines[s + 1] && lines[s + 1].trim().length < 70 ? " – " + lines[s + 1].trim() : "")).slice(0, 120), text: lines.slice(s, heads[k + 1] ?? lines.length).join("\n"), level: 1 }));
   return out;
 }
 
-/* Turn raw sections into lesson-sized pieces: merge tiny ones, split huge ones, at most ~40 lessons. */
+/* Boxes like "Supporting Idea: Falsifiability" become their own lesson instead of hiding inside a chapter. */
+const SUPPORT_RE = /^\s*(supporting ideas?|idea di supporto|idee di supporto|idea a supporto|concetto di supporto)\b\s*[:.\-–—]?\s*(.*)$/i;
+function splitSupport(sections) {
+  const out = [];
+  for (const s of sections) {
+    const lines = s.text.split("\n");
+    let cur = { ...s }, buf = [], curName = s.keep ? s.title.toLowerCase() : null;
+    for (let i = 0; i < lines.length; i++) {
+      const ln = lines[i], m = ln.length < 120 ? ln.match(SUPPORT_RE) : null;
+      if (m) {
+        let name = m[2].replace(/[.\s\d]+$/, "").trim();
+        if (!name && lines[i + 1] && lines[i + 1].trim().length < 80) name = lines[i + 1].trim();
+        const title = ("Idea di supporto: " + name).replace(/:\s*$/, "").slice(0, 120);
+        // the same label repeated as a running page header belongs to the box we are already in
+        if (curName !== title.toLowerCase() && !(cur.keep && cur.title.toLowerCase() === title.toLowerCase())) {
+          if (buf.join("").trim()) { cur.text = buf.join("\n"); out.push(cur); buf = []; cur = { title, level: 2, keep: true }; }
+          else { cur.title = cur.title || title; cur.keep = true; }
+          curName = title.toLowerCase();
+        }
+      }
+      buf.push(ln);
+    }
+    cur.text = buf.join("\n"); out.push(cur);
+  }
+  return out;
+}
+
+/* Turn sections into lessons: sub-sections join their chapter, boxes stay on their own,
+   huge chapters are split. Each lesson keeps the list of headings it contains so none is skipped. */
 function toLessons(sections) {
+  sections = splitSupport(sections);
   const total = sections.reduce((a, s) => a + s.text.length, 0);
   const target = Math.max(18000, Math.ceil(total / 40)), min = Math.min(5000, target / 3);
   const merged = [];
   for (const s of sections) {
+    const t = s.text.trim(); if (!t) continue;
+    const keep = !!s.keep && t.length > 600;
     const last = merged[merged.length - 1];
-    if (last && (last.text.length < min)) { last.text += "\n\n" + s.text; last.title = last.title || s.title; }
-    else merged.push({ title: s.title, text: s.text });
+    // sub-sections stay with their chapter; a new chapter only absorbs a tiny opening (cover, foreword)
+    const canJoin = last && !keep && !last.keep && (s.level !== 1 ? last.text.length + t.length <= target * 1.6 : (last.text.length < min && last.level === 1));
+    if (canJoin || (last && t.length < 600)) {
+      last.text += "\n\n" + t; if (!last.title) last.title = s.title; else if (s.title) last.subs.push(s.title);
+    } else merged.push({ title: s.title || "", text: t, keep, subs: [], level: s.level === 1 ? 1 : 2 });
   }
-  if (merged.length > 1 && merged[merged.length - 1].text.length < min) { const t = merged.pop(); merged[merged.length - 1].text += "\n\n" + t.text; }
+  if (merged.length > 1 && merged[merged.length - 1].text.length < min && !merged[merged.length - 1].keep) {
+    const t = merged.pop(); const last = merged[merged.length - 1]; last.text += "\n\n" + t.text; if (t.title) last.subs.push(t.title, ...t.subs);
+  }
   const out = [];
   for (const s of merged) {
     if (s.text.length <= target * 1.6) { out.push(s); continue; }
@@ -353,7 +441,8 @@ function toLessons(sections) {
     for (let p = 0; p < parts; p++) {
       let end = p === parts - 1 ? s.text.length : s.text.indexOf("\n", pos + size);
       if (end < 0) end = s.text.length;
-      out.push({ title: s.title ? `${s.title} (${p + 1}/${parts})` : "", text: s.text.slice(pos, end) });
+      const text = s.text.slice(pos, end);
+      out.push({ title: s.title ? `${s.title} (${p + 1}/${parts})` : "", text, keep: s.keep, subs: s.subs.filter((x) => text.includes(x.replace(/^Idea di supporto:\s*/, ""))) });
       pos = end;
     }
   }
@@ -381,7 +470,7 @@ async function analyzeBook(meta, lessons) {
 Ti do estratti di un libro diviso in ${lessons.length} sezioni (per ogni sezione solo l'inizio). Titolo nei metadati: "${meta.title || "sconosciuto"}", autore: "${meta.author || "sconosciuto"}".
 Restituisci SOLO JSON con questa forma:
 {"titolo": string, "autore": string, "tesi": string (2 frasi: cosa promette il libro e come), "principi": [{"nome": string (max 5 parole), "sintesi": string (1 frase)}] (da 6 a 12: tutti i principi principali del libro, non tralasciarne), "titoliLezioni": [string] (esattamente ${lessons.length} titoli brevi, max 7 parole, uno per sezione nell'ordine, che dicano cosa si impara ad applicare)}
-Se una sezione è prefazione, indice o ringraziamenti, dalle comunque un titolo come "Introduzione".
+Se una sezione è prefazione, indice o ringraziamenti, dalle comunque un titolo come "Introduzione". Se una sezione ha un titolo originale (per esempio un modello mentale o una "Supporting Idea" come Falsifiability), il titolo della lezione deve contenere il nome di quel concetto, tradotto in italiano.
 
 ${overview}`;
   const s = await getSample();
@@ -393,7 +482,9 @@ async function generateLesson(book, idx, text) {
 LIBRO: "${book.title}" di ${book.author || "autore sconosciuto"}. Tesi: ${book.thesis}
 Principi del libro: ${arr(book.principles).map((p) => p.nome).join("; ")}
 Questa è la lezione ${idx + 1} di ${book.sections.length}: "${book.sections[idx].title}".
-Leggi il testo della sezione qui sotto e trasformalo in una lezione per applicarlo nella vita di tutti i giorni.
+${book.sections[idx].original ? `Titolo originale nel libro: "${book.sections[idx].original}".` : ""}${book.sections[idx].box ? " Questa sezione è un riquadro \"idea di supporto\": l'idea chiave è proprio quel concetto." : ""}
+${book.sections[idx].subs?.length ? `La sezione contiene questi sottotitoli: ${book.sections[idx].subs.map((x) => `"${x}"`).join(", ")}. OGNUNO deve comparire in ideeSupporto, con il suo nome.` : ""}
+Leggi il testo della sezione qui sotto e trasformalo in una lezione per applicarlo nella vita di tutti i giorni. Includi anche riquadri, box laterali, esempi storici e sezioni intitolate "Supporting Idea" o "Idea di supporto".
 Restituisci SOLO JSON:
 {"ideaChiave": string (1 frase memorabile), "spiegazione": string (1 paragrafo di 80-120 parole che spiega l'idea con parole semplici), "citazione": string (una frase breve presa davvero dal testo, max 200 caratteri, nella lingua originale; stringa vuota se non adatta),
 "ideeSupporto": [{"idea": string (max 12 parole), "spiegazione": string (1-2 frasi su cosa dice il libro), "comeApplicarla": string (1 frase: azione concreta nella vita quotidiana)}] (TUTTI gli insegnamenti, le idee di supporto, i concetti, le tecniche e gli argomenti presenti nella sezione oltre all'idea chiave, nell'ordine in cui compaiono: di solito da 4 a 12. Non tralasciarne nessuno: chi legge deve trovare qui tutto ciò che la sezione insegna),
@@ -515,7 +606,7 @@ async function handleFile(file) {
     const book = {
       title: str(a?.titolo || parsed.title || file.name.replace(/\.[^.]+$/, ""), 200), author: str(a?.autore || parsed.author, 200),
       thesis: str(a?.tesi, 800), principles: arr(a?.principi).slice(0, 12).map((p) => ({ nome: str(p?.nome, 80), sintesi: str(p?.sintesi, 300) })),
-      sections: lessons.map((l, i) => ({ title: str(titles[i] || l.title || `Parte ${i + 1}`, 140), chars: l.text.length })),
+      sections: lessons.map((l, i) => ({ title: str(titles[i] || l.title || `Parte ${i + 1}`, 140), original: str(l.title, 140), subs: l.subs.slice(0, 30).map((x) => str(x, 120)), box: !!l.keep, chars: l.text.length })),
       fileName: str(file.name, 200), createdAt: new Date().toISOString(), lastOpened: new Date().toISOString(), doneCount: 0, current: 0,
     };
     setUpload("Fatto. Apro la prima lezione…", 1);
@@ -682,6 +773,7 @@ function lessonCard(head, l) {
 
   return h("div", { class: "card lesson" }, head,
     h("h2", null, state.book.sections[i].title),
+    state.book.sections[i].original && h("p", { class: "msg", style: "margin-top:-14px" }, "Nel libro: " + state.book.sections[i].original),
     h("div", { class: "section" }, h("span", { class: "label" }, "Idea chiave"), h("p", { class: "idea" }, h("span", { class: "mark" }, c.ideaChiave))),
     c.spiegazione && h("p", { class: "body" }, c.spiegazione),
     c.citazione && h("blockquote", { class: "quote", style: "margin:0" }, `“${c.citazione}”`),
