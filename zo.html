@@ -1,0 +1,799 @@
+<title>ZO Modelli Mentali</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: a pocket field guide. One column, a card per model, a bottom bar with four places:
+   the plan (where you are on the 87-model path), this week's model, the full index, and you. */
+:root {
+  --bg: #eef3f2;
+  --paper: #ffffff;
+  --ink: #13201f;
+  --muted: #586a68;
+  --line: #d5dfdd;
+  --teal: #0f4c4a;
+  --teal-soft: #dcece9;
+  --orange: #c9531d;
+  --orange-soft: #fbe5d8;
+  --ok: #2c7a45;
+  --bad: #b23a2e;
+  --f-display: "Newsreader", Georgia, "Times New Roman", serif;
+  --f-ui: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0c1514; --paper: #142120; --ink: #e2ebe9; --muted: #95a8a5; --line: #263936;
+  --teal: #62c2b7; --teal-soft: #17302d; --orange: #f08a54; --orange-soft: #3a2316;
+  --ok: #7fd197; --bad: #f08a80; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0c1514; --paper: #142120; --ink: #e2ebe9; --muted: #95a8a5; --line: #263936;
+  --teal: #62c2b7; --teal-soft: #17302d; --orange: #f08a54; --orange-soft: #3a2316;
+  --ok: #7fd197; --bad: #f08a80; color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font: 16px/1.55 var(--f-ui); margin: 0 }
+.wrap { max-width: 680px; margin: 0 auto; padding-block: 12px 120px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 600; margin: 0; line-height: 1.15; text-wrap: balance }
+h1 { font-size: clamp(2rem, 7vw, 2.6rem); letter-spacing: -.01em }
+h2 { font-size: 1.5rem }
+h3 { font-size: 1.15rem }
+p { margin: 0 }
+a { color: var(--teal) }
+.eyebrow { font-size: .76rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--orange) }
+.muted { color: var(--muted) }
+.small { font-size: .88rem }
+.stack { display: flex; flex-direction: column; gap: 14px }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center }
+section.block { display: flex; flex-direction: column; gap: 12px; padding-block: 22px; border-top: 1px solid var(--line) }
+
+button, .btn { font: 600 .95rem var(--f-ui); border-radius: 999px; border: 1.5px solid var(--line); background: var(--paper);
+  color: var(--ink); padding: .6rem 1.1rem; cursor: pointer; display: inline-flex; align-items: center; gap: .45rem; text-decoration: none }
+button:hover { border-color: var(--teal) }
+button:disabled { opacity: .55; cursor: default }
+button.primary { background: var(--teal); border-color: var(--teal); color: var(--paper) }
+button.ghost { background: transparent; border-color: transparent; padding-inline: .5rem }
+button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus-visible, .item:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px }
+input[type=text], input[type=search], textarea { width: 100%; font: 400 1rem var(--f-ui); color: var(--ink); background: var(--paper);
+  border: 1.5px solid var(--line); border-radius: 12px; padding: .7rem .85rem }
+textarea { min-height: 96px; resize: vertical }
+label.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600; font-size: .92rem }
+
+/* top bar */
+.top { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding-block: 8px 14px }
+.top .left { justify-self: start } .top .right { justify-self: end }
+.logo { display: inline-flex; align-items: center; gap: 10px; font: 700 1.6rem var(--f-ui); letter-spacing: .02em; color: var(--ink); text-decoration: none }
+.mark { width: 40px; height: 40px; border-radius: 10px; background: var(--teal); display: grid; place-items: center; position: relative;
+  color: #fff; font: 800 1.05rem var(--f-ui); letter-spacing: -.02em }
+.mark span { display: inline-block }
+.mark .o { width: 17px; height: 17px; border-radius: 50%; border: 3.5px solid #f08a54; margin-left: 1px; vertical-align: -2px }
+.iconbtn { width: 44px; height: 44px; border-radius: 50%; padding: 0; justify-content: center }
+
+/* bottom nav */
+nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--paper); border-top: 1px solid var(--line);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: max(8px, env(safe-area-inset-left, 0px)); padding-right: max(8px, env(safe-area-inset-right, 0px)) }
+nav.tabs .in { max-width: 680px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr) }
+nav.tabs a { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 2px 10px; color: var(--muted);
+  text-decoration: none; font-size: .8rem; font-weight: 600 }
+nav.tabs a svg { width: 26px; height: 26px; padding: 3px; border-radius: 999px; box-sizing: content-box; padding-inline: 14px }
+nav.tabs a[aria-current="page"] { color: var(--ink) }
+nav.tabs a[aria-current="page"] svg { background: var(--teal); color: var(--paper) }
+
+/* plan */
+.hero { background: var(--teal); color: #fff; border-radius: 20px; padding: 22px; display: flex; flex-direction: column; gap: 12px }
+.hero .eyebrow { color: #ffb48a }
+.hero h1 { color: #fff }
+.hero p { color: #d7ecea }
+.hero button { background: #fff; color: #0f4c4a; border-color: #fff }
+.hero button.alt { background: transparent; color: #fff; border-color: rgba(255,255,255,.45) }
+.days { display: flex; gap: 6px }
+.days i { flex: 1; height: 6px; border-radius: 3px; background: rgba(255,255,255,.22) }
+.days i.on { background: #ffb48a }
+.bar { height: 8px; background: var(--teal-soft); border-radius: 4px; overflow: hidden }
+.bar > i { display: block; height: 100%; background: var(--teal); border-radius: 4px }
+.cats { display: grid; grid-template-columns: 1fr auto; gap: 8px 14px; align-items: center; font-size: .9rem }
+.cats .bar { grid-column: 1 / -1; height: 5px; margin-top: -4px }
+.cats span:nth-child(3n+2) { font-variant-numeric: tabular-nums; color: var(--muted) }
+
+/* list items */
+.list { display: flex; flex-direction: column }
+.item { display: flex; flex-direction: column; gap: 6px; padding: 18px 4px; border-bottom: 1px solid var(--line); text-decoration: none; color: inherit; cursor: pointer }
+.item:hover h3 { color: var(--teal) }
+.item h3 { font-size: 1.45rem }
+.item p { color: var(--muted) }
+.item .meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: .85rem; color: var(--ink) }
+.pill { font-size: .75rem; font-weight: 700; border-radius: 999px; padding: .15rem .6rem; background: var(--teal-soft); color: var(--teal) }
+.pill.orange { background: var(--orange-soft); color: var(--orange) }
+.pill.ok { background: var(--teal); color: var(--paper) }
+.chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none }
+.chips button { white-space: nowrap; padding: .4rem .85rem; font-size: .85rem }
+.chips button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink) }
+
+/* model page */
+.bolts { display: inline-flex; gap: 2px; vertical-align: middle }
+.bolts svg { width: 20px; height: 20px; color: var(--line) }
+.bolts svg.on { color: var(--orange) }
+.idea { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); padding: 18px 20px; font-size: 1.15rem; line-height: 1.5 }
+.toggle { display: grid; grid-template-columns: 1fr 1fr; background: var(--paper); border: 1px solid var(--line); border-radius: 999px; padding: 4px }
+.toggle button { border: 0; background: transparent; justify-content: center }
+.toggle button[aria-pressed="true"] { background: var(--orange); color: #fff }
+.prose { display: flex; flex-direction: column; gap: 12px; font-size: 1.05rem; max-width: 65ch }
+.prose h3 { margin-top: 6px }
+.prose ul { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 6px }
+details { border-top: 1px solid var(--line) }
+details:last-of-type { border-bottom: 1px solid var(--line) }
+summary { list-style: none; cursor: pointer; padding: 15px 4px; font-weight: 700; display: flex; justify-content: space-between; gap: 12px }
+summary::-webkit-details-marker { display: none }
+summary::after { content: "+"; font-size: 1.4rem; line-height: 1; color: var(--muted) }
+details[open] summary::after { content: "−" }
+details > p { padding: 0 4px 16px; color: var(--muted) }
+.ex { display: grid; gap: 10px }
+.ex article { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: flex; flex-direction: column; gap: 6px }
+.challenge { background: var(--orange-soft); border-radius: var(--r); padding: 18px 20px; display: flex; flex-direction: column; gap: 8px }
+.challenge .eyebrow { color: var(--orange) }
+.quiz { display: flex; flex-direction: column; gap: 18px }
+.q { display: flex; flex-direction: column; gap: 10px }
+.q .opts { display: flex; flex-direction: column; gap: 8px; align-items: flex-start }
+.q .opts button { border-radius: 12px; text-align: left; font-weight: 500 }
+.q .opts button.right { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, var(--paper)) }
+.q .opts button.wrong { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 10%, var(--paper)) }
+.q .why { font-size: .95rem; color: var(--muted) }
+.answer { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); padding: 16px 18px }
+.turn-user { align-self: flex-end; background: var(--teal-soft); border-radius: var(--r); padding: 10px 14px; max-width: 90% }
+.entry { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 8px }
+.entry .fb { border-left: 3px solid var(--teal); padding-left: 10px; color: var(--muted); font-size: .95rem }
+.skel { display: flex; flex-direction: column; gap: 10px }
+.skel i { display: block; height: 14px; border-radius: 7px; background: var(--line); animation: pulse 1.4s ease-in-out infinite }
+.skel i:nth-child(2n) { width: 82% } .skel i:nth-child(3n) { width: 64% }
+@keyframes pulse { 50% { opacity: .45 } }
+@media (prefers-reduced-motion: reduce) { .skel i { animation: none } }
+.note { background: var(--teal-soft); color: var(--ink); border-radius: var(--r); padding: 14px 16px; font-size: .95rem }
+.links { display: flex; gap: 8px; flex-wrap: wrap }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(92px + env(safe-area-inset-bottom, 0px)); z-index: 30;
+  background: var(--ink); color: var(--bg); padding: .7rem 1.1rem; border-radius: 12px; font-weight: 600; max-width: calc(100% - 32px) }
+.checks { display: flex; flex-wrap: wrap; gap: 8px }
+.checks label { display: inline-flex; gap: 6px; align-items: center; border: 1.5px solid var(--line); border-radius: 999px; padding: .35rem .8rem; background: var(--paper); cursor: pointer; font-size: .92rem }
+.radios { display: flex; flex-direction: column; gap: 8px }
+.radios label { display: flex; gap: 10px; align-items: flex-start; background: var(--paper); border: 1.5px solid var(--line); border-radius: 12px; padding: 12px 14px; cursor: pointer }
+.radios label span { display: flex; flex-direction: column }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="left" id="topLeft"></div>
+    <a class="logo" href="#piano" aria-label="ZO, vai al piano"><span class="mark" aria-hidden="true"><span>Z<span class="o"></span></span></span>ZO</a>
+    <div class="right" id="topRight"></div>
+  </header>
+  <main id="app" aria-live="polite"></main>
+</div>
+
+<nav class="tabs" aria-label="Sezioni">
+  <div class="in">
+    <a href="#piano" data-tab="piano"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Il tuo piano</a>
+    <a href="#settimana" data-tab="settimana"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>Settimana</a>
+    <a href="#contenuti" data-tab="contenuti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg>Contenuti</a>
+    <a href="#impostazioni" data-tab="impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Impostazioni</a>
+  </div>
+</nav>
+
+<script>
+/* ---------- the 87 models ---------- */
+const CATS = {
+  rag: "Ragionamento e decisioni",
+  fis: "Fisica e materiali",
+  evo: "Evoluzione, collaborazione e organizzazione",
+  sis: "Sistemi e processi complessi",
+  qua: "Quantità, probabilità e ottimizzazione",
+  eco: "Economia, strategia e risorse",
+  com: "Comunicazione, creatività e narrazione",
+};
+const SHORT = { rag: "Ragionamento", fis: "Fisica", evo: "Evoluzione", sis: "Sistemi", qua: "Quantità", eco: "Economia", com: "Comunicazione" };
+const RAW = [
+ ["rag","La mappa non è il territorio","Ogni modello semplifica la realtà: è utile finché ricordi cosa lascia fuori."],
+ ["rag","Il cerchio di competenza","Sapere dove finisce ciò che conosci davvero vale più di quanto sai."],
+ ["rag","Il pensiero per principi primi","Riparti dai vincoli essenziali per trovare una soluzione nuova."],
+ ["rag","L'esperimento mentale","Cambia una condizione nell'immaginazione e seguine le conseguenze."],
+ ["rag","Il pensiero di secondo ordine","Chiediti cosa succede dopo la prima conseguenza."],
+ ["rag","Il pensiero probabilistico","Ragiona in probabilità invece che in certezze, e aggiorna le stime."],
+ ["rag","L'inversione","Per scegliere meglio, chiediti cosa garantirebbe il fallimento ed evitalo."],
+ ["rag","Il rasoio di Occam","A parità di spiegazione, preferisci quella con meno ipotesi."],
+ ["rag","Il rasoio di Hanlon","Non attribuire a malizia ciò che si spiega con distrazione o errore."],
+ ["rag","Lo sconto iperbolico","Preferiamo una ricompensa subito a una più grande che arriva dopo."],
+ ["rag","Falsificabilità","Un'idea è solida quando dice cosa la smentirebbe."],
+ ["rag","Necessità e sufficienza","Una condizione può essere indispensabile senza bastare."],
+ ["rag","Correlazione e causalità","Due cose che si muovono insieme non per forza si causano."],
+ ["fis","Relatività","Ciò che osservi dipende dal punto da cui guardi."],
+ ["fis","Reciprocità","Ogni azione verso gli altri tende a tornare in forma simile."],
+ ["fis","Termodinamica","Senza energia in ingresso, ogni sistema tende al disordine."],
+ ["fis","Inerzia","Ciò che è in moto tende a restare in moto, ciò che è fermo a restare fermo."],
+ ["fis","Attrito e viscosità","Piccole resistenze continue rallentano più di un grande ostacolo."],
+ ["fis","Velocità e direzione","Andare veloci serve solo se vai nella direzione giusta."],
+ ["fis","Leva","Il punto giusto moltiplica l'effetto di uno sforzo piccolo."],
+ ["fis","Energia di attivazione","Molte azioni richiedono una spinta iniziale prima di diventare facili."],
+ ["fis","Catalizzatori","Alcuni elementi accelerano un cambiamento senza consumarsi."],
+ ["fis","Leghe","Combinare elementi diversi può creare qualità che nessuno ha da solo."],
+ ["evo","Selezione naturale ed estinzione","Sopravvive ciò che si adatta meglio a un ambiente che cambia."],
+ ["evo","Adattamento ed effetto Regina Rossa","Bisogna migliorare di continuo anche solo per restare al passo."],
+ ["evo","Competizione","Risorse limitate mettono in gara chi le cerca."],
+ ["evo","Ecosistema","Ogni parte dipende dalle altre in una rete di relazioni."],
+ ["evo","Nicchie","Occupare uno spazio preciso riduce la competizione."],
+ ["evo","Autoconservazione","Persone e organizzazioni agiscono prima di tutto per proteggere se stesse."],
+ ["evo","Replicazione","Ciò che funziona tende a essere copiato, errori compresi."],
+ ["evo","Cooperazione","Collaborare può rendere tutti più forti che competere."],
+ ["evo","Il numero di Dunbar","Possiamo mantenere davvero solo un numero limitato di relazioni stabili."],
+ ["evo","Organizzazione gerarchica","I gruppi si strutturano in livelli per coordinarsi."],
+ ["evo","Incentivi","Le persone fanno ciò per cui vengono premiate."],
+ ["evo","Minimizzazione del dispendio energetico","Tendiamo a scegliere la strada che costa meno fatica."],
+ ["sis","Circuiti di retroazione","Gli effetti di un'azione tornano a influenzarne la causa."],
+ ["sis","Equilibrio","I sistemi tendono a uno stato stabile e si correggono quando se ne allontanano."],
+ ["sis","Colli di bottiglia","Il punto più lento limita la velocità dell'intero sistema."],
+ ["sis","Scala","Quando cambiano le dimensioni, cambiano anche le regole."],
+ ["sis","Margine di sicurezza","Lascia spazio all'errore: l'imprevisto arriva sempre."],
+ ["sis","Ricambio","Le parti di un sistema si rinnovano di continuo, anche quando sembra uguale."],
+ ["sis","Algoritmi","Una sequenza di regole chiare produce risultati ripetibili."],
+ ["sis","Sistemi adattivi complessi","Molti agenti che si adattano creano comportamenti difficili da prevedere."],
+ ["sis","Massa critica","Oltre una certa soglia, un cambiamento si alimenta da solo."],
+ ["sis","Emergenza","L'insieme mostra proprietà che le singole parti non hanno."],
+ ["sis","Dinamiche caotiche","Piccole differenze iniziali possono portare a esiti molto diversi."],
+ ["sis","Irriducibilità","Alcune cose non si possono semplificare oltre un certo punto senza perderle."],
+ ["qua","Rendimenti decrescenti","Oltre un certo punto, ogni sforzo in più rende sempre meno."],
+ ["qua","Distribuzioni","Conta la forma dei dati, non solo la media."],
+ ["qua","Crescita composta","Piccoli guadagni che si sommano nel tempo diventano enormi."],
+ ["qua","Effetti di rete","Un servizio vale di più quante più persone lo usano."],
+ ["qua","Campionamento","Le conclusioni valgono quanto è rappresentativo ciò che osservi."],
+ ["qua","Casualità","Molti risultati dipendono dal caso più di quanto pensiamo."],
+ ["qua","Principio di Pareto","In molti insiemi il risultato è concentrato in una minoranza di cause o casi."],
+ ["qua","Regressione verso la media","Dopo un risultato estremo, il successivo tende a essere più normale."],
+ ["qua","Moltiplicare per zero","Un solo elemento nullo può annullare tutto il resto."],
+ ["qua","Equivalenza","Strade diverse possono portare allo stesso risultato."],
+ ["qua","Ordine di grandezza","Prima dei dettagli, capisci se parli di 10, 100 o 1000."],
+ ["qua","Superficie esposta","Più punti di contatto hai, più opportunità e rischi incontri."],
+ ["qua","Massimi locali e globali","La scelta migliore tra quelle vicine può restare inferiore a una più lontana."],
+ ["eco","Scarsità","Una risorsa è scarsa quando gli usi desiderati superano la quantità disponibile."],
+ ["eco","Domanda e offerta","Il prezzo nasce dall'incontro tra quanto si vuole e quanto c'è."],
+ ["eco","Teoria dei giochi","L'esito delle tue scelte dipende anche dalle scelte degli altri."],
+ ["eco","Ottimizzazione","Cerca la soluzione migliore dati obiettivi e vincoli precisi."],
+ ["eco","Compromessi","Ogni scelta rinuncia a qualcosa: conviene sapere a cosa."],
+ ["eco","Specializzazione","Dividere il lavoro aumenta la produzione quando ognuno fa ciò in cui rinuncia a meno."],
+ ["eco","Interdipendenza","Quando le parti dipendono l'una dall'altra, un guasto si propaga."],
+ ["eco","Efficienza","Fare di più con meno, a costo di avere meno riserve."],
+ ["eco","Debito","Ottenere qualcosa ora in cambio di un costo più alto dopo."],
+ ["eco","Monopolio e concorrenza","Senza rivali i prezzi salgono e l'innovazione rallenta."],
+ ["eco","Esternalità","Alcune scelte hanno costi o benefici che ricadono su altri."],
+ ["eco","Distruzione creatrice","Il nuovo nasce spesso sostituendo il vecchio."],
+ ["eco","Legge di Gresham","Ciò che vale meno tende a scacciare ciò che vale di più."],
+ ["eco","Bolle speculative","I prezzi salgono perché si crede che saliranno ancora, finché smettono."],
+ ["com","Pubblico","Un messaggio funziona solo se è pensato per chi lo riceve."],
+ ["com","Genere","Ogni forma ha convenzioni che il pubblico si aspetta."],
+ ["com","Contrasto","Le cose si notano per differenza da ciò che le circonda."],
+ ["com","Inquadratura","Come presenti una scelta cambia come viene giudicata."],
+ ["com","Ritmo","L'alternanza di tensione e pausa tiene viva l'attenzione."],
+ ["com","Melodia","Un tema riconoscibile resta in mente e dà coerenza."],
+ ["com","Rappresentazione","Ogni immagine o parola sceglie cosa mostrare e cosa lasciare fuori."],
+ ["com","Equilibrio compositivo","Gli elementi si bilanciano per guidare lo sguardo."],
+ ["com","Trama","Una catena di cause ed effetti trasforma i fatti in una storia."],
+ ["com","Personaggio","Ci appassioniamo a chi vuole qualcosa e affronta ostacoli per ottenerlo."],
+ ["com","Ambientazione","Il contesto cambia il significato di ciò che accade."],
+ ["com","Sottotesto","Ciò che non viene detto spesso conta più di ciò che si dice."],
+ ["com","Esecuzione e interpretazione","Un'idea vale per come viene realizzata e letta."],
+];
+const slugify = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const MODELS = RAW.map(([cat, title, tag], i) => ({ n: i + 1, cat, title, tag, slug: slugify(title) }));
+const BY = Object.fromEntries(MODELS.map((m) => [m.slug, m]));
+const BY_TITLE = Object.fromEntries(MODELS.map((m) => [m.title.toLowerCase(), m]));
+const AREAS = ["Lavoro", "Studio", "Relazioni", "Famiglia", "Soldi", "Salute", "Creatività", "Te stesso"];
+
+/* ---------- helpers ---------- */
+const $ = (s, el = document) => el.querySelector(s);
+const app = $("#app");
+const today = () => new Date().toISOString().slice(0, 10);
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const str = (v, max = 3000) => (typeof v === "string" ? v : v == null ? "" : String(v)).trim().slice(0, max);
+const arr = (v) => (Array.isArray(v) ? v : []);
+const daysSince = (d) => d ? Math.max(0, Math.floor((Date.now() - new Date(d + "T00:00:00").getTime()) / 86400000)) : 0;
+const fmtDate = (d) => { try { return new Date(d).toLocaleDateString("it-IT", { day: "numeric", month: "long" }); } catch { return d; } };
+function toast(msg) {
+  const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; t.setAttribute("role", "status");
+  document.body.appendChild(t); setTimeout(() => t.remove(), 2800);
+}
+/* Plain text from Claude -> paragraphs and bullet lists, always escaped. */
+function prose(text) {
+  const out = []; let list = null;
+  for (const raw of String(text || "").split(/\n/)) {
+    const line = raw.trim().replace(/\*\*(.+?)\*\*/g, "$1").replace(/^#+\s*/, "");
+    if (!line) { list = null; continue; }
+    const b = line.match(/^(?:[-•*]|\d+[.)])\s+(.*)$/);
+    if (b) { if (!list) { list = []; out.push(list); } list.push(b[1]); }
+    else { list = null; out.push(line); }
+  }
+  return out.map((x) => Array.isArray(x) ? `<ul>${x.map((li) => `<li>${esc(li)}</li>`).join("")}</ul>` : `<p>${esc(x)}</p>`).join("");
+}
+const BOLT = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>';
+const bolts = (n) => `<span class="bolts" aria-label="Difficoltà ${n} su 3">${[1,2,3].map((i) => BOLT.replace("<svg", `<svg class="${i <= n ? "on" : ""}"`)).join("")}</span>`;
+
+/* ---------- capabilities ---------- */
+const cap = (name) => (window.claude && typeof window.claude.use === "function") ? window.claude.use(name).catch(() => null) : Promise.resolve(null);
+const sampleP = cap("sample");
+
+/* ---------- storage: private space in the account when available, this browser otherwise ---------- */
+const Store = {
+  mode: "local", db: null, base: null,
+  async init() {
+    const [db, user] = await Promise.all([cap("db"), cap("user")]);
+    if (db && user) {
+      try { const id = await user.id(); if (id) { this.db = db; this.base = "data/users/" + id; this.mode = "cloud"; } } catch {}
+    }
+  },
+  ls(k, v) {
+    try {
+      if (v === undefined) return JSON.parse(localStorage.getItem("zo:" + k) || "null");
+      v === null ? localStorage.removeItem("zo:" + k) : localStorage.setItem("zo:" + k, JSON.stringify(v));
+    } catch { return null; }
+  },
+  async get(path) {
+    if (this.mode === "cloud") { const s = await this.db.doc(this.base + "/" + path).get(); return s.exists ? s.data() : null; }
+    return this.ls(path);
+  },
+  async set(path, data) {
+    if (this.mode === "cloud") return this.db.doc(this.base + "/" + path).set(data);
+    this.ls(path, data);
+    const coll = path.split("/").slice(0, -1).join("/");
+    if (coll) { const id = path.split("/").pop(); const idx = new Set(this.ls("idx:" + coll) || []); idx.add(id); this.ls("idx:" + coll, [...idx]); }
+  },
+  async del(path) {
+    if (this.mode === "cloud") return this.db.doc(this.base + "/" + path).delete();
+    this.ls(path, null);
+    const coll = path.split("/").slice(0, -1).join("/"); const id = path.split("/").pop();
+    if (coll) this.ls("idx:" + coll, (this.ls("idx:" + coll) || []).filter((x) => x !== id));
+  },
+  async list(coll, field, value) {
+    if (this.mode === "cloud") {
+      let q = this.db.collection(this.base + "/" + coll);
+      if (field) q = q.where(field, "==", value);
+      const r = await q.limit(300).get();
+      return r.docs.map((d) => ({ id: d.id, ...d.data() }));
+    }
+    return (this.ls("idx:" + coll) || []).map((id) => ({ id, ...(this.ls(coll + "/" + id) || {}) }))
+      .filter((d) => !field || d[field] === value);
+  },
+};
+
+/* ---------- state ---------- */
+let S = { order: "lista", seed: 0, current: null, startedAt: {}, done: {}, quiz: {}, profile: { nome: "", lavoro: "", aree: [], obiettivo: "" } };
+const cards = {};       // slug -> card, loaded from storage
+const pending = {};     // slug -> promise while Claude writes it
+let saveTimer = null; let loaded = false;
+function save() { if (!loaded) return; clearTimeout(saveTimer); saveTimer = setTimeout(() => Store.set("zo_state", S).catch(() => toast("Salvataggio non riuscito: riprova tra poco.")), 300); }
+
+function planOrder() {
+  const list = MODELS.slice();
+  if (S.order === "categorie") {
+    const groups = Object.keys(CATS).map((c) => list.filter((m) => m.cat === c)); const out = [];
+    for (let i = 0; out.length < list.length; i++) for (const g of groups) if (g[i]) out.push(g[i]);
+    return out;
+  }
+  if (S.order === "casuale") {
+    let s = S.seed || 1; const rnd = () => ((s = (s * 1103515245 + 12345) % 2147483648) / 2147483648);
+    for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; }
+  }
+  return list;
+}
+function currentModel() {
+  if (S.current && BY[S.current] && !S.done[S.current]) return BY[S.current];
+  return planOrder().find((m) => !S.done[m.slug]) || null;
+}
+const doneCount = () => Object.keys(S.done).filter((k) => BY[k]).length;
+
+/* ---------- Claude: the model card ---------- */
+function profileText() {
+  const p = S.profile || {}; const bits = [];
+  if (p.nome) bits.push(`Si chiama ${p.nome}.`);
+  if (p.lavoro) bits.push(`Lavoro o studio: ${p.lavoro}.`);
+  if (arr(p.aree).length) bits.push(`Ambiti di vita che gli interessano di più: ${p.aree.join(", ")}.`);
+  if (p.obiettivo) bits.push(`Obiettivo attuale: ${p.obiettivo}.`);
+  return bits.length ? "Chi legge:\n" + bits.join(" ") + "\nUsa questi dati per scegliere esempi vicini alla sua vita, senza nominarli in modo forzato." : "Non conosci chi legge: usa esempi quotidiani vari (lavoro, relazioni, soldi, salute).";
+}
+function cleanCard(r) {
+  r = r && typeof r === "object" ? r : {};
+  const card = {
+    difficolta: Math.min(3, Math.max(1, parseInt(r.difficolta, 10) || 2)),
+    idea: str(r.idea, 400),
+    domanda: str(r.domanda, 200),
+    rapida: str(r.rapida, 2500),
+    approfondita: arr(r.approfondita).slice(0, 6).map((s) => ({ titolo: str(s?.titolo, 120), testo: str(s?.testo, 2500) })).filter((s) => s.testo),
+    riconoscerlo: arr(r.riconoscerlo).slice(0, 5).map((s) => ({ segnale: str(s?.segnale, 120), descrizione: str(s?.descrizione, 800) })).filter((s) => s.segnale),
+    esempi: arr(r.esempi).slice(0, 5).map((s) => ({ ambito: str(s?.ambito, 40), situazione: str(s?.situazione, 800), applicazione: str(s?.applicazione, 800) })).filter((s) => s.situazione),
+    sfida: str(r.sfida, 800),
+    domande: arr(r.domande).slice(0, 5).map((d) => str(d, 300)).filter(Boolean),
+    errore: str(r.errore, 800),
+    quiz: arr(r.quiz).slice(0, 5).map((q) => ({
+      domanda: str(q?.domanda, 400), opzioni: arr(q?.opzioni).slice(0, 4).map((o) => str(o, 300)),
+      corretta: parseInt(q?.corretta, 10), spiegazione: str(q?.spiegazione, 800),
+    })).filter((q) => q.domanda && q.opzioni.length >= 2 && q.corretta >= 0 && q.corretta < q.opzioni.length),
+    collegati: arr(r.collegati).map((t) => BY_TITLE[str(t, 120).toLowerCase()]?.slug).filter(Boolean).slice(0, 4),
+    creata: today(),
+  };
+  if (!card.idea || !card.rapida) throw { code: "bad_card", message: "La scheda è arrivata incompleta." };
+  return card;
+}
+async function generateCard(m) {
+  const sample = await sampleP;
+  if (!sample) throw { code: "no_sample" };
+  const prompt = `Sei l'autore di ZO, un'app italiana che insegna i modelli mentali per usarli nella vita di tutti i giorni.
+Scrivi la scheda del modello mentale "${m.title}" (categoria: ${CATS[m.cat]}). Idea in una riga: "${m.tag}".
+
+${profileText()}
+
+Regole di scrittura: italiano semplice e concreto, frasi brevi, seconda persona singolare, nessun gergo senza spiegazione. Esempi quotidiani realistici. Se citi fatti, persone o studi, usa solo quelli certi e famosi; non inventare citazioni. Testo semplice, senza markdown.
+
+Rispondi SOLO con un oggetto JSON valido con questa forma:
+{
+ "difficolta": 1, 2 o 3 (quanto è difficile da applicare bene),
+ "idea": "il modello in una frase chiara",
+ "domanda": "una domanda-titolo che apre la lezione e fa riconoscere il problema",
+ "rapida": "spiegazione rapida in 70-110 parole",
+ "approfondita": [{"titolo": "...", "testo": "80-140 parole"}] con 4 sezioni: da dove viene, come funziona, quando usarlo, dove smette di funzionare,
+ "riconoscerlo": [{"segnale": "nome breve del segnale", "descrizione": "come lo noti nella vita reale"}] (3 elementi),
+ "esempi": [{"ambito": "Lavoro|Relazioni|Soldi|Salute|Studio|Famiglia|Te stesso", "situazione": "...", "applicazione": "cosa cambia se usi il modello"}] (3 elementi, ambiti diversi),
+ "sfida": "una sfida pratica da fare questa settimana, concreta e verificabile",
+ "domande": ["3 domande da farti quando prendi una decisione"],
+ "errore": "l'errore più comune quando si usa male questo modello",
+ "quiz": [{"domanda": "una situazione concreta", "opzioni": ["4 risposte"], "corretta": indice 0-3, "spiegazione": "perché"}] (3 domande, la risposta giusta in posizioni diverse),
+ "collegati": ["2-3 titoli di altri modelli, copiati esattamente da questo elenco"]
+}
+Elenco dei modelli: ${MODELS.filter((x) => x !== m).map((x) => x.title).join("; ")}`;
+  const r = await sample.json(prompt, { modelTier: "default" });
+  const card = cleanCard(r);
+  await Store.set("zo/cards/" + m.slug, card).catch(() => {});
+  cards[m.slug] = card;
+  return card;
+}
+function ensureCard(m, force) {
+  if (!force && cards[m.slug]) return Promise.resolve(cards[m.slug]);
+  if (!pending[m.slug]) pending[m.slug] = generateCard(m).finally(() => { delete pending[m.slug]; });
+  return pending[m.slug];
+}
+const errCopy = (e) => ({
+  no_sample: "Per far scrivere la scheda a Claude, apri ZO su claude.ai con il tuo account.",
+  not_granted: "Hai scelto di non usare Claude in questa app. Puoi riattivarlo dal menu Autorizzazioni dell'artifact.",
+  rate_limited: "Troppe richieste in poco tempo. Aspetta un minuto e riprova.",
+  bad_card: "La scheda è arrivata incompleta. Riprova.",
+}[e?.code] || "Claude non ha risposto. Controlla la connessione e riprova.");
+
+/* ---------- views ---------- */
+let view = { name: "piano", slug: null, mode: "rapida" };
+function setTop(left = "", right = "") { $("#topLeft").innerHTML = left; $("#topRight").innerHTML = right; }
+function setTab(name) { document.querySelectorAll("nav.tabs a").forEach((a) => { if (a.dataset.tab === name) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); }); }
+
+function route() {
+  const h = (location.hash || "#piano").slice(1);
+  if (h.startsWith("m-") && BY[h.slice(2)]) { view = { ...view, name: "model", slug: h.slice(2) }; setTab(currentModel()?.slug === view.slug ? "settimana" : "contenuti"); return renderModel(BY[view.slug]); }
+  const name = ["piano", "settimana", "contenuti", "impostazioni"].includes(h) ? h : "piano";
+  view = { ...view, name }; setTab(name);
+  window.scrollTo(0, 0);
+  if (name === "piano") return renderPlan();
+  if (name === "settimana") { const m = currentModel(); return m ? renderModel(m) : renderPlan(); }
+  if (name === "contenuti") return renderIndex();
+  return renderSettings();
+}
+
+/* Il tuo piano */
+function renderPlan() {
+  setTop("", "");
+  const m = currentModel(); const done = doneCount(); const pct = Math.round(done / MODELS.length * 100);
+  if (m && !S.startedAt[m.slug]) { S.startedAt[m.slug] = today(); save(); }
+  const day = m ? Math.min(7, daysSince(S.startedAt[m.slug]) + 1) : 0;
+  const order = planOrder(); const next = order.filter((x) => !S.done[x.slug] && x !== m).slice(0, 5);
+  const finished = Object.entries(S.done).filter(([k]) => BY[k]).sort((a, b) => b[1].localeCompare(a[1])).map(([k]) => BY[k]);
+  const hello = S.profile?.nome ? `Ciao ${esc(S.profile.nome)}.` : "Un modello mentale a settimana.";
+  app.innerHTML = `<div class="stack">
+    <p class="muted">${hello} ${done ? `Hai completato ${done} modelli su ${MODELS.length}.` : `Il percorso comprende ${MODELS.length} modelli in 7 aree.`}</p>
+    ${m ? `<div class="hero">
+      <span class="eyebrow">Settimana ${done + 1} · ${esc(SHORT[m.cat])}</span>
+      <h1>${esc(m.title)}</h1>
+      <p>${esc(cards[m.slug]?.idea || m.tag)}</p>
+      <div class="days" aria-label="Giorno ${day} di 7">${[1,2,3,4,5,6,7].map((i) => `<i class="${i <= day ? "on" : ""}"></i>`).join("")}</div>
+      <p class="small">Giorno ${day} di 7${day >= 7 ? ". Hai avuto una settimana intera: se ti senti pronto, segnalo come completato." : ""}</p>
+      <div class="row"><button id="openWeek">Apri la lezione</button>${day >= 7 ? `<button class="alt" id="finishWeek">Segna come completato</button>` : ""}</div>
+    </div>` : `<div class="hero"><span class="eyebrow">Percorso completato</span><h1>Hai studiato tutti gli 87 modelli</h1><p>Ripassali dai quiz qui sotto o rileggi le schede in Contenuti.</p></div>`}
+  </div>
+  <section class="block" style="margin-top:18px">
+    <div class="row" style="justify-content:space-between"><h2>Il tuo progresso</h2><span class="muted" style="font-variant-numeric:tabular-nums">${pct}%</span></div>
+    <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="${MODELS.length}" aria-valuenow="${done}"><i style="width:${pct}%"></i></div>
+    <div class="cats">${Object.keys(CATS).map((c) => { const tot = MODELS.filter((x) => x.cat === c).length; const d = MODELS.filter((x) => x.cat === c && S.done[x.slug]).length;
+      return `<span>${esc(CATS[c])}</span><span>${d}/${tot}</span><div class="bar"><i style="width:${Math.round(d / tot * 100)}%"></i></div>`; }).join("")}</div>
+  </section>
+  ${next.length ? `<section class="block"><h2>Prossime settimane</h2><div class="list">${next.map((x, i) => itemHTML(x, `Settimana ${done + 2 + i}`)).join("")}</div>
+    <p class="small muted">L'ordine segue la scelta in Impostazioni. Puoi anche scegliere un modello da Contenuti.</p></section>` : ""}
+  ${finished.length ? `<section class="block"><h2>Da ripassare</h2><div class="list">${finished.slice(0, 12).map((x) => itemHTML(x, "Completato il " + fmtDate(S.done[x.slug]))).join("")}</div></section>` : ""}`;
+  $("#openWeek")?.addEventListener("click", () => { location.hash = "m-" + m.slug; });
+  $("#finishWeek")?.addEventListener("click", () => complete(m));
+}
+
+function itemHTML(m, eyebrow) {
+  const q = S.quiz[m.slug]; const cur = currentModel()?.slug === m.slug;
+  const pills = [
+    S.done[m.slug] ? `<span class="pill ok">Completato</span>` : "",
+    cur ? `<span class="pill orange">Questa settimana</span>` : "",
+    q ? `<span class="pill">Quiz ${q.score}/${q.total}</span>` : "",
+  ].join("");
+  return `<a class="item" href="#m-${m.slug}">
+    <span class="eyebrow">${esc(eyebrow || CATS[m.cat])}</span>
+    <h3>${esc(m.title)}</h3>
+    <p>${esc(cards[m.slug]?.idea || m.tag)}</p>
+    <span class="meta"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 5.5C4.5 4 8.5 4 12 6c3.5-2 7.5-2 10-.5V19c-2.5-1.5-6.5-1.5-10 .5-3.5-2-7.5-2-10-.5z"/><path d="M12 6v13.5"/></svg>Scheda del modello ${pills}</span>
+  </a>`;
+}
+
+/* Contenuti */
+let filter = { cat: "", q: "" };
+function renderIndex() {
+  setTop("", "");
+  app.innerHTML = `<div class="stack">
+    <h1>Contenuti</h1>
+    <input type="search" id="search" placeholder="Cerca un modello" aria-label="Cerca un modello" value="${esc(filter.q)}">
+    <div class="chips" role="group" aria-label="Filtra per area">
+      <button data-cat="" aria-pressed="${!filter.cat}">Tutti · ${MODELS.length}</button>
+      ${Object.keys(CATS).map((c) => `<button data-cat="${c}" aria-pressed="${filter.cat === c}">${esc(SHORT[c])} · ${MODELS.filter((m) => m.cat === c).length}</button>`).join("")}
+    </div>
+    <div class="list" id="results"></div>
+  </div>`;
+  const draw = () => {
+    const q = slugify(filter.q);
+    const list = MODELS.filter((m) => (!filter.cat || m.cat === filter.cat) && (!q || slugify(m.title + " " + m.tag).includes(q)));
+    $("#results").innerHTML = list.length ? list.map((m) => itemHTML(m)).join("") : `<p class="muted" style="padding:18px 4px">Nessun modello corrisponde a “${esc(filter.q)}”.</p>`;
+  };
+  draw();
+  $("#search").addEventListener("input", (e) => { filter.q = e.target.value; draw(); });
+  app.querySelectorAll("[data-cat]").forEach((b) => b.addEventListener("click", () => {
+    filter.cat = b.dataset.cat; app.querySelectorAll("[data-cat]").forEach((x) => x.setAttribute("aria-pressed", x === b)); draw();
+  }));
+}
+
+/* Scheda / lezione */
+function renderModel(m) {
+  window.scrollTo(0, 0);
+  const isCur = currentModel()?.slug === m.slug; const done = !!S.done[m.slug];
+  setTop(`<button class="iconbtn ghost" id="back" aria-label="Indietro"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>`,
+    `<button class="iconbtn" id="doneTop" aria-label="${done ? "Completato" : "Segna come completato"}" title="${done ? "Completato" : "Segna come completato"}" style="${done ? "background:var(--teal);color:var(--paper);border-color:var(--teal)" : ""}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>`);
+  $("#back").onclick = () => history.length > 1 ? history.back() : (location.hash = "piano");
+  $("#doneTop").onclick = () => done ? undoComplete(m) : complete(m);
+  const card = cards[m.slug];
+  const eyebrow = isCur ? `Settimana ${doneCount() + 1} · ${CATS[m.cat]}` : CATS[m.cat];
+  app.innerHTML = `<div class="stack">
+    <span class="eyebrow">${esc(eyebrow)}</span>
+    <h1>${esc(m.title)}</h1>
+    <div class="row"><span class="eyebrow">Difficoltà</span> <span id="diff">${card ? bolts(card.difficolta) : `<span class="muted small">da valutare</span>`}</span></div>
+    <div class="toggle" role="group" aria-label="Livello di lettura">
+      <button data-mode="rapida" aria-pressed="${view.mode === "rapida"}">Rapida</button>
+      <button data-mode="approfondita" aria-pressed="${view.mode === "approfondita"}">Approfondita</button>
+    </div>
+    <div class="idea">${esc(card?.idea || m.tag)}</div>
+    <div id="body"></div>
+  </div>`;
+  app.querySelectorAll("[data-mode]").forEach((b) => b.addEventListener("click", () => {
+    view.mode = b.dataset.mode; app.querySelectorAll("[data-mode]").forEach((x) => x.setAttribute("aria-pressed", x === b)); drawBody(m);
+  }));
+  if (card) return drawBody(m);
+  $("#body").innerHTML = `<section class="block"><p class="muted">Claude sta scrivendo la scheda${S.profile?.nome || S.profile?.lavoro ? " con esempi pensati per te" : ""}. Di solito serve meno di un minuto.</p><div class="skel"><i></i><i></i><i></i><i></i><i></i></div></section>`;
+  ensureCard(m).then(() => { if (view.name === "model" && view.slug === m.slug || view.name === "settimana" && currentModel()?.slug === m.slug) renderModel(m); })
+    .catch((e) => {
+      if (!(view.slug === m.slug || view.name === "settimana")) return;
+      $("#body").innerHTML = `<section class="block"><div class="note">${esc(errCopy(e))}</div>${e?.code === "no_sample" || e?.code === "not_granted" ? "" : `<div><button class="primary" id="retry">Riprova</button></div>`}</section>${actionsHTML(m)}`;
+      $("#retry")?.addEventListener("click", () => renderModel(m));
+      bindActions(m);
+    });
+}
+
+function drawBody(m) {
+  const c = cards[m.slug]; const body = $("#body"); if (!c || !body) return;
+  const reading = view.mode === "rapida"
+    ? `<div class="prose">${c.domanda ? `<h2>${esc(c.domanda)}</h2>` : ""}${prose(c.rapida)}</div>`
+    : `<div class="prose">${c.domanda ? `<h2>${esc(c.domanda)}</h2>` : ""}${c.approfondita.map((s) => `<h3>${esc(s.titolo)}</h3>${prose(s.testo)}`).join("") || prose(c.rapida)}</div>`;
+  body.innerHTML = `
+  <section class="block" style="border-top:0;padding-top:6px">${reading}</section>
+  ${c.riconoscerlo.length ? `<section class="block"><h2>Come riconoscerlo</h2><div>${c.riconoscerlo.map((r) => `<details><summary>${esc(r.segnale)}</summary><p>${esc(r.descrizione)}</p></details>`).join("")}</div></section>` : ""}
+  ${c.esempi.length ? `<section class="block"><h2>Nella vita di tutti i giorni</h2><div class="ex">${c.esempi.map((e) => `<article><span class="eyebrow">${esc(e.ambito)}</span><p>${esc(e.situazione)}</p><p class="muted">${esc(e.applicazione)}</p></article>`).join("")}</div></section>` : ""}
+  ${c.sfida ? `<section class="block"><div class="challenge"><span class="eyebrow">Sfida della settimana</span><p style="font-size:1.08rem">${esc(c.sfida)}</p></div></section>` : ""}
+  ${c.domande.length || c.errore ? `<section class="block">${c.domande.length ? `<h2>Domande da farti</h2><div class="prose"><ul>${c.domande.map((d) => `<li>${esc(d)}</li>`).join("")}</ul></div>` : ""}
+    ${c.errore ? `<h3 style="margin-top:8px">L'errore da evitare</h3><p class="muted">${esc(c.errore)}</p>` : ""}</section>` : ""}
+  ${c.quiz.length ? `<section class="block"><h2>Verifica veloce</h2><div class="quiz" id="quiz">${c.quiz.map((q, i) => `<div class="q" data-q="${i}"><p style="font-weight:600">${esc(q.domanda)}</p><div class="opts">${q.opzioni.map((o, j) => `<button data-o="${j}">${esc(o)}</button>`).join("")}</div><p class="why" hidden></p></div>`).join("")}</div><p class="small muted" id="quizScore"></p></section>` : ""}
+  ${actionsHTML(m)}
+  ${c.collegati.length ? `<section class="block"><h2>Modelli collegati</h2><div class="links">${c.collegati.map((s) => `<a class="btn" href="#m-${s}">${esc(BY[s].title)}</a>`).join("")}</div></section>` : ""}
+  <section class="block"><p class="small muted">Scheda scritta da Claude il ${esc(fmtDate(c.creata))}. Può contenere imprecisioni.</p><div><button id="regen">Riscrivi la scheda con i miei dati attuali</button></div></section>`;
+  bindQuiz(m); bindActions(m);
+  $("#regen").addEventListener("click", async (e) => {
+    e.target.disabled = true; e.target.textContent = "Claude sta riscrivendo la scheda…";
+    try { await ensureCard(m, true); renderModel(m); toast("Scheda aggiornata"); } catch (err) { e.target.disabled = false; e.target.textContent = "Riscrivi la scheda con i miei dati attuali"; toast(errCopy(err)); }
+  });
+}
+
+function bindQuiz(m) {
+  const c = cards[m.slug]; const quiz = $("#quiz"); if (!quiz) return;
+  const answers = {};
+  quiz.querySelectorAll(".q").forEach((qel) => {
+    const i = +qel.dataset.q; const q = c.quiz[i];
+    qel.querySelectorAll("[data-o]").forEach((b) => b.addEventListener("click", () => {
+      if (i in answers) return;
+      const j = +b.dataset.o; answers[i] = j === q.corretta;
+      qel.querySelectorAll("[data-o]").forEach((x) => { x.disabled = true; if (+x.dataset.o === q.corretta) x.classList.add("right"); });
+      if (j !== q.corretta) b.classList.add("wrong");
+      const why = qel.querySelector(".why"); why.hidden = false; why.textContent = (j === q.corretta ? "Giusto. " : "Non proprio. ") + q.spiegazione;
+      if (Object.keys(answers).length === c.quiz.length) {
+        const score = Object.values(answers).filter(Boolean).length;
+        S.quiz[m.slug] = { score, total: c.quiz.length, data: today() }; save();
+        $("#quizScore").textContent = `Risultato: ${score} su ${c.quiz.length}. Lo trovi salvato nel piano.`;
+      }
+    }));
+  });
+}
+
+/* Practice: apply to a real situation + journal */
+function actionsHTML(m) {
+  const isCur = currentModel()?.slug === m.slug; const done = !!S.done[m.slug];
+  return `<section class="block" id="apply">
+    <h2>Applicalo a una tua situazione</h2>
+    <p class="muted">Descrivi una decisione, un problema o un conflitto che stai vivendo. Claude ti mostra come usare questo modello, passo per passo.</p>
+    <div class="stack" id="chat"></div>
+    <label class="field" for="sit"><span class="sr">La tua situazione</span><textarea id="sit" placeholder="Es. Devo decidere se accettare un nuovo lavoro che paga di più ma è lontano da casa."></textarea></label>
+    <div class="row"><button class="primary" id="ask">Chiedi a Claude</button><button id="stop" hidden>Ferma</button></div>
+  </section>
+  <section class="block">
+    <h2>Diario della settimana</h2>
+    <p class="muted">Dove hai visto questo modello in azione? Scrivere ti aiuta a riconoscerlo la prossima volta.</p>
+    <div class="stack" id="entries"></div>
+    <label class="field" for="note">Nuova nota<textarea id="note" placeholder="Oggi ho notato che…"></textarea></label>
+    <div class="row"><button class="primary" id="saveNote">Salva nel diario</button></div>
+  </section>
+  <section class="block">
+    <div class="row">
+      ${done ? `<button id="undo">Rimetti tra i modelli da studiare</button>` : `<button class="primary" id="complete">Segna come completato</button>`}
+      ${!done && !isCur ? `<button id="pick">Studialo questa settimana</button>` : ""}
+    </div>
+  </section>`;
+}
+let chatTurns = []; let chatSlug = null;
+function bindActions(m) {
+  if (chatSlug !== m.slug) { chatTurns = []; chatSlug = m.slug; }
+  const chat = $("#chat");
+  const drawChat = () => {
+    chat.innerHTML = chatTurns.map((t) => t.role === "user" ? `<div class="turn-user">${esc(t.shown)}</div>` : `<div class="answer prose">${prose(t.content)}</div>`).join("");
+    $("#sit").placeholder = chatTurns.length ? "Fai una domanda di approfondimento o aggiungi dettagli" : "Es. Devo decidere se accettare un nuovo lavoro che paga di più ma è lontano da casa.";
+  };
+  drawChat();
+  let ctl = null;
+  $("#ask").addEventListener("click", async () => {
+    const text = $("#sit").value.trim(); if (!text) { $("#sit").focus(); return; }
+    const sample = await sampleP; if (!sample) { toast(errCopy({ code: "no_sample" })); return; }
+    const c = cards[m.slug];
+    const first = !chatTurns.length;
+    const content = first ? `Sei un coach di ZO, un'app che insegna i modelli mentali. Aiuta a applicare il modello "${m.title}" (${c?.idea || m.tag}) a una situazione reale.
+${profileText()}
+Rispondi in italiano, testo semplice senza markdown pesante, massimo 220 parole: 1) cosa ti fa vedere questo modello nella situazione, 2) 2-3 passi concreti, usando elenchi con "- ", 3) una domanda finale da farti. Se il modello non si adatta bene, dillo e suggerisci quale altro modello dell'elenco userebbe meglio.
+
+Situazione: ${text}` : text;
+    chatTurns.push({ role: "user", content, shown: text });
+    const answer = { role: "assistant", content: "Claude sta pensando…" }; chatTurns.push(answer);
+    $("#sit").value = ""; drawChat();
+    $("#ask").disabled = true; $("#stop").hidden = false; ctl = new AbortController();
+    const last = () => chat.lastElementChild;
+    try {
+      const r = await sample(chatTurns.slice(0, -1).map(({ role, content }) => ({ role, content })), {
+        modelTier: "default", cache: false, signal: ctl.signal,
+        onText: ({ text }) => { answer.content = text; if (last()) last().innerHTML = prose(text); },
+      });
+      answer.content = r.text;
+    } catch (e) {
+      if (e?.text) answer.content = e.text + "\n\n(Risposta interrotta.)";
+      else { chatTurns.splice(-2, 2); $("#sit").value = text; if (e?.code !== "aborted") toast(errCopy(e)); }
+    }
+    drawChat(); $("#ask").disabled = false; $("#stop").hidden = true;
+  });
+  $("#stop").addEventListener("click", () => ctl?.abort());
+
+  const drawEntries = async () => {
+    const list = (await Store.list("zo/journal", "slug", m.slug).catch(() => [])).sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
+    const el = $("#entries"); if (!el) return;
+    el.innerHTML = list.map((e) => `<div class="entry" data-id="${esc(e.id)}">
+      <span class="eyebrow" style="color:var(--muted)">${esc(fmtDate(e.data))}</span><p>${esc(e.testo)}</p>
+      ${e.feedback ? `<div class="fb">${esc(e.feedback)}</div>` : `<div class="row"><button class="ghost small" data-fb="${esc(e.id)}">Chiedi un commento a Claude</button></div>`}
+    </div>`).join("");
+    el.querySelectorAll("[data-fb]").forEach((b) => b.addEventListener("click", async () => {
+      const entry = list.find((x) => x.id === b.dataset.fb); const sample = await sampleP;
+      if (!sample) return toast(errCopy({ code: "no_sample" }));
+      b.disabled = true; b.textContent = "Claude sta leggendo…";
+      try {
+        const { text } = await sample(`Sei un coach di ZO, app sui modelli mentali. Questa settimana chi scrive studia "${m.title}" (${cards[m.slug]?.idea || m.tag}). Ecco una sua nota di diario:\n"""${entry.testo}"""\nRispondi in italiano, massimo 70 parole, testo semplice: riconosci cosa ha colto bene, correggi con gentilezza se ha frainteso il modello, e proponi una piccola azione per domani.`, { modelTier: "default" });
+        entry.feedback = text.trim().slice(0, 1200);
+        const { id, ...doc } = entry; await Store.set("zo/journal/" + id, doc); drawEntries();
+      } catch (e) { b.disabled = false; b.textContent = "Chiedi un commento a Claude"; toast(errCopy(e)); }
+    }));
+  };
+  drawEntries();
+  $("#saveNote").addEventListener("click", async () => {
+    const testo = $("#note").value.trim().slice(0, 3000); if (!testo) { $("#note").focus(); return; }
+    const ts = new Date().toISOString(); const id = m.slug + "-" + Date.now();
+    try { await Store.set("zo/journal/" + id, { slug: m.slug, testo, data: today(), ts }); $("#note").value = ""; toast("Salvato nel diario"); drawEntries(); }
+    catch { toast("Non sono riuscito a salvare la nota. Riprova."); }
+  });
+  $("#complete")?.addEventListener("click", () => complete(m));
+  $("#undo")?.addEventListener("click", () => undoComplete(m));
+  $("#pick")?.addEventListener("click", () => { S.current = m.slug; S.startedAt[m.slug] = today(); save(); toast(`“${m.title}” è il modello di questa settimana`); location.hash = "settimana"; route(); });
+}
+
+function complete(m) {
+  S.done[m.slug] = today(); if (S.current === m.slug) S.current = null; save();
+  const n = currentModel();
+  if (n) { S.startedAt[n.slug] = today(); save(); }
+  toast(n ? `Completato. Prossimo: ${n.title}` : "Hai completato tutto il percorso");
+  if (location.hash === "#piano") route(); else location.hash = "piano";
+}
+function undoComplete(m) { delete S.done[m.slug]; save(); toast("Rimesso tra i modelli da studiare"); route(); }
+
+/* Impostazioni */
+function renderSettings() {
+  setTop("", "");
+  const p = S.profile || {};
+  app.innerHTML = `<div class="stack">
+    <h1>Impostazioni</h1>
+    <p class="muted">${Store.mode === "cloud" ? "I tuoi progressi, le schede e il diario sono salvati nel tuo account e restano privati." : "I progressi sono salvati solo in questo browser. Apri ZO su claude.ai con il tuo account per tenerli tra i dispositivi."}</p>
+  </div>
+  <section class="block" style="margin-top:14px">
+    <h2>Su di te</h2>
+    <p class="muted">Claude usa queste informazioni per scegliere esempi vicini alla tua vita.</p>
+    <label class="field" for="pNome">Come ti chiami<input type="text" id="pNome" value="${esc(p.nome)}" autocomplete="given-name"></label>
+    <label class="field" for="pLavoro">Cosa fai (lavoro o studio)<input type="text" id="pLavoro" value="${esc(p.lavoro)}" placeholder="Es. infermiera, sviluppatore, studente di economia"></label>
+    <div class="field"><span>Ambiti che ti interessano di più</span><div class="checks">${AREAS.map((a, i) => `<label for="area${i}"><input type="checkbox" id="area${i}" value="${a}" ${arr(p.aree).includes(a) ? "checked" : ""}>${a}</label>`).join("")}</div></div>
+    <label class="field" for="pObj">Su cosa vuoi ragionare meglio<textarea id="pObj" placeholder="Es. prendere decisioni sui soldi con meno ansia">${esc(p.obiettivo)}</textarea></label>
+    <div><button class="primary" id="saveProfile">Salva</button></div>
+    <p class="small muted">Le schede già scritte restano come sono: dentro ogni scheda trovi “Riscrivi la scheda con i miei dati attuali”.</p>
+  </section>
+  <section class="block">
+    <h2>Ordine del percorso</h2>
+    <div class="radios">
+      ${[["lista", "Nell'ordine dell'elenco", "Dal ragionamento alla narrazione, un'area dopo l'altra."],
+         ["categorie", "Alternando le aree", "Ogni settimana un'area diversa, per collegare idee lontane."],
+         ["casuale", "In ordine casuale", "Un ordine mescolato una volta e poi fisso."]].map(([v, t, d]) =>
+        `<label for="ord-${v}"><input type="radio" name="ord" id="ord-${v}" value="${v}" ${S.order === v ? "checked" : ""}><span><strong>${t}</strong><span class="muted small">${d}</span></span></label>`).join("")}
+    </div>
+    <p class="small muted">Cambiare ordine non tocca i modelli già completati né quello della settimana in corso.</p>
+  </section>
+  <section class="block">
+    <h2>Ricomincia</h2>
+    <p class="muted">Azzera i modelli completati e i risultati dei quiz. Schede e diario restano.</p>
+    <div class="row" id="resetRow"><button id="reset">Azzera i progressi</button></div>
+  </section>`;
+  $("#saveProfile").addEventListener("click", () => {
+    S.profile = { nome: $("#pNome").value.trim().slice(0, 60), lavoro: $("#pLavoro").value.trim().slice(0, 160),
+      aree: [...app.querySelectorAll(".checks input:checked")].map((x) => x.value), obiettivo: $("#pObj").value.trim().slice(0, 400) };
+    save(); toast("Salvato");
+  });
+  app.querySelectorAll("input[name=ord]").forEach((r) => r.addEventListener("change", () => {
+    const cur = currentModel(); S.order = r.value; if (r.value === "casuale" && !S.seed) S.seed = Math.floor(Math.random() * 1e9) + 1;
+    if (cur) S.current = cur.slug; save(); toast("Ordine aggiornato");
+  }));
+  $("#reset").addEventListener("click", () => {
+    $("#resetRow").innerHTML = `<span>Sei sicuro?</span><button class="primary" id="resetYes" style="background:var(--bad);border-color:var(--bad)">Sì, azzera</button><button id="resetNo">Annulla</button>`;
+    $("#resetNo").onclick = renderSettings;
+    $("#resetYes").onclick = () => { S.done = {}; S.quiz = {}; S.current = null; S.startedAt = {}; save(); toast("Progressi azzerati"); location.hash = "piano"; };
+  });
+}
+
+/* ---------- boot ---------- */
+async function boot() {
+  route(); // first frame from the built-in list
+  await Store.init();
+  try {
+    const st = await Store.get("zo_state");
+    if (st && typeof st === "object") S = { ...S, ...st, profile: { ...S.profile, ...(st.profile || {}) }, done: st.done || {}, quiz: st.quiz || {}, startedAt: st.startedAt || {} };
+    const list = await Store.list("zo/cards");
+    for (const c of list) if (BY[c.id] && c.idea) cards[c.id] = c;
+  } catch {}
+  loaded = true;
+  route();
+}
+window.addEventListener("hashchange", route);
+boot();
+</script>

@@ -10,3 +10,17 @@ App web che trasforma un libro in un percorso di lezioni quotidiane per applicar
 
 Il file `index.html` è pubblicato come Artifact su claude.ai (usa le capacità `sample`, `db` e `user`).
 Il testo del libro resta nel browser (IndexedDB); lezioni e progressi sono salvati nell'account.
+
+---
+
+# ZO – Modelli Mentali
+
+`zo.html`: app per imparare un modello mentale a settimana (87 modelli in 7 aree) e usarlo nella vita di tutti i giorni.
+
+- **Il tuo piano**: modello della settimana (giorno X di 7), progresso per area, prossime settimane, modelli da ripassare.
+- **Settimana / scheda**: lettura Rapida o Approfondita, come riconoscerlo, esempi quotidiani, sfida della settimana, domande da farsi, errore da evitare, quiz, modelli collegati. La scheda la scrive **Claude** al primo accesso, con esempi adattati al profilo, e resta salvata.
+- **Applicalo a una tua situazione**: descrivi un problema reale e Claude mostra come usare il modello.
+- **Diario** con commento facoltativo di Claude.
+- **Impostazioni**: profilo "Su di te", ordine del percorso (elenco, aree alternate, casuale), azzera progressi.
+
+Pubblicata come Artifact su claude.ai (capacità `sample`, `db`, `user`); i dati restano privati nell'account.
