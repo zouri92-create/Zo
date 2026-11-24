@@ -15,12 +15,13 @@ Il testo del libro resta nel browser (IndexedDB); lezioni e progressi sono salva
 
 # ZO – Modelli Mentali
 
-`zo.html`: app per imparare un modello mentale a settimana (87 modelli in 7 aree) e usarlo nella vita di tutti i giorni.
+`zo.html`: biblioteca **offline** di 87 modelli mentali, per impararli uno a settimana e usarli nella vita di tutti i giorni. Non serve internet né un account: tutto il contenuto è dentro il file e i progressi restano nel browser.
 
-- **Il tuo piano**: modello della settimana (giorno X di 7), progresso per area, prossime settimane, modelli da ripassare.
-- **Settimana / scheda**: lettura Rapida o Approfondita, come riconoscerlo, esempi quotidiani, sfida della settimana, domande da farsi, errore da evitare, quiz, modelli collegati. La scheda la scrive **Claude** al primo accesso, con esempi adattati al profilo, e resta salvata.
-- **Applicalo a una tua situazione**: descrivi un problema reale e Claude mostra come usare il modello.
-- **Diario** con commento facoltativo di Claude.
-- **Impostazioni**: profilo "Su di te", ordine del percorso (elenco, aree alternate, casuale), azzera progressi.
+- **Il tuo piano**: modello della settimana (giorno X di 7), esercizio e domanda del giorno, progresso per area, prossime settimane.
+- **Biblioteca**: 87 schede complete, con ricerca e filtri per area e per stato. Ogni scheda ha lettura Rapida o Approfondita, segnali per riconoscere il modello, esempi quotidiani, 3 esercizi da spuntare, domande da farsi, l'errore da evitare, un quiz e i modelli della stessa area.
+- **Applicalo a una tua situazione**: una scheda guidata (situazione, risposte alle domande del modello, cosa farò) che finisce nel diario.
+- **Ripasso** con quiz dai modelli completati e **Diario** di note e schede.
+- **Impostazioni**: nome, ordine del percorso, copia di sicurezza dei dati, azzera progressi.
 
-Pubblicata come Artifact su claude.ai (capacità `sample`, `db`, `user`); i dati restano privati nell'account.
+I sorgenti sono in `zo-src/`: le schede in `zo-src/data/` (un file per area), l'elenco in `models.js`, l'app in `app.js`.
+Dopo una modifica, rigenera il file unico con `python3 zo-src/build.py`.
