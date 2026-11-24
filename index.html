@@ -413,6 +413,61 @@ function splitSupport(sections) {
   return out;
 }
 
+/* Ask Claude where each real chapter starts: it reads the table of contents and picks, from the
+   short lines that look like headings, the one where each chapter (or supporting box) begins. */
+const normT = (t) => t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+async function findChapters(text, knownTitles) {
+  const lines = text.split("\n"), total = text.length || 1, known = new Set(knownTitles.map(normT));
+  const collect = (maxLen) => {
+    const out = [], seen = {}; let off = 0;
+    lines.forEach((ln, i) => {
+      const t = ln.trim(), pos = off; off += ln.length + 1;
+      if (t.length < 3 || t.length > maxLen || /[.,;]$/.test(t) || !/\p{L}/u.test(t) || t.split(/\s+/).length > 12) return;
+      if (!/^[\p{Lu}\p{N}"“'«]/u.test(t) && !known.has(normT(t))) return;
+      const k = normT(t); seen[k] = (seen[k] || 0) + 1; if (seen[k] > 3) return;
+      out.push({ i, t, pct: Math.round((pos / total) * 100), known: known.has(k) });
+    });
+    return out;
+  };
+  let cands = collect(70); for (const m of [55, 42, 32]) if (cands.length > 1800) cands = collect(m);
+  cands = cands.slice(0, 1800);
+  if (cands.length < 3) return null;
+  const prompt = `Analizzi la struttura di un libro. Sotto trovi l'inizio del libro (dove di solito c'è l'indice) e un elenco di righe candidate a essere titoli: id | posizione nel libro in % | * se il file stesso le marca come titolo | testo.
+Trova dove INIZIA DAVVERO nel testo ogni capitolo e ogni riquadro di approfondimento (per esempio "Supporting Idea: Falsifiability", "Necessity and Sufficiency").
+Regole:
+- Usa l'indice per sapere quali capitoli esistono e in che ordine. Ogni capitolo dell'indice deve comparire una volta.
+- Per ognuno scegli la riga candidata dove inizia nel corpo del libro, NON la riga dell'indice. Se un titolo si ripete come intestazione di pagina, scegli la prima occorrenza dopo l'indice.
+- Non unire mai due capitoli. I riquadri "Supporting Idea" o simili sono tipo "supporto".
+- "sottosezione" per i titoli interni a un capitolo. "da_saltare" per copertina, indice, note, bibliografia, ringraziamenti, pubblicità finali.
+Restituisci SOLO JSON: {"sezioni": [{"id": number, "titolo": string, "tipo": "capitolo"|"supporto"|"sottosezione"|"da_saltare"}]} in ordine di posizione.
+
+INIZIO DEL LIBRO:
+${text.slice(0, 25000)}
+
+RIGHE CANDIDATE:
+${cands.map((c, k) => `${k}|${c.pct}%|${c.known ? "*" : ""}|${c.t}`).join("\n")}`;
+  const s = await getSample();
+  const r = await s.json(prompt, { modelTier: "default" });
+  const tipi = new Set(["capitolo", "supporto", "sottosezione", "da_saltare"]);
+  const seenLine = new Set();
+  const cuts = arr(r?.sezioni).map((x) => {
+    const c = cands[x?.id]; if (!c || seenLine.has(c.i)) return null; seenLine.add(c.i);
+    return { line: c.i, titolo: str(x.titolo || c.t, 140), tipo: tipi.has(x.tipo) ? x.tipo : "capitolo" };
+  }).filter(Boolean).sort((a, b) => a.line - b.line);
+  return cuts.filter((c) => c.tipo === "capitolo" || c.tipo === "supporto").length >= 2 ? cuts.slice(0, 300) : null;
+}
+function sectionsFromCuts(text, cuts) {
+  const lines = text.split("\n"), out = [];
+  const pre = lines.slice(0, cuts[0].line).join("\n");
+  if (pre.trim().length > 15000) out.push({ title: "", text: pre, level: 1 }); // a long opening is real content, keep it
+  cuts.forEach((c, k) => {
+    if (c.tipo === "da_saltare") return;
+    const body = lines.slice(c.line, cuts[k + 1] ? cuts[k + 1].line : lines.length).join("\n");
+    out.push({ title: c.titolo, text: body, level: c.tipo === "capitolo" ? 1 : 2, keep: c.tipo === "supporto" });
+  });
+  return out;
+}
+
 /* Turn sections into lessons: sub-sections join their chapter, boxes stay on their own,
    huge chapters are split. Each lesson keeps the list of headings it contains so none is skipped. */
 function toLessons(sections) {
@@ -425,17 +480,17 @@ function toLessons(sections) {
     const keep = !!s.keep && t.length > 600;
     const last = merged[merged.length - 1];
     // sub-sections stay with their chapter; a new chapter only absorbs a tiny opening (cover, foreword)
-    const canJoin = last && !keep && !last.keep && (s.level !== 1 ? last.text.length + t.length <= target * 1.6 : (last.text.length < min && last.level === 1));
+    const canJoin = last && !keep && !last.keep && (s.level !== 1 ? last.text.length + t.length <= target * 1.6 : (last.level === 1 && (last.text.length < 1200 || (!last.title && last.text.length < min))));
     if (canJoin || (last && t.length < 600)) {
       last.text += "\n\n" + t; if (!last.title) last.title = s.title; else if (s.title) last.subs.push(s.title);
     } else merged.push({ title: s.title || "", text: t, keep, subs: [], level: s.level === 1 ? 1 : 2 });
   }
-  if (merged.length > 1 && merged[merged.length - 1].text.length < min && !merged[merged.length - 1].keep) {
+  if (merged.length > 1 && merged[merged.length - 1].text.length < 1200 && !merged[merged.length - 1].keep) {
     const t = merged.pop(); const last = merged[merged.length - 1]; last.text += "\n\n" + t.text; if (t.title) last.subs.push(t.title, ...t.subs);
   }
   const out = [];
   for (const s of merged) {
-    if (s.text.length <= target * 1.6) { out.push(s); continue; }
+    if (s.text.length <= (s.title ? Math.max(target * 1.6, 60000) : target * 1.6)) { out.push(s); continue; }
     const parts = Math.ceil(s.text.length / target), size = Math.ceil(s.text.length / parts);
     let pos = 0;
     for (let p = 0; p < parts; p++) {
@@ -596,7 +651,10 @@ async function handleFile(file) {
     else if (ext === "epub") parsed = await readEpub(file, onProg);
     else if (["txt", "md", "markdown", "text"].includes(ext) || file.type.startsWith("text/")) parsed = await readTxt(file);
     else throw new Error("Formato non supportato. Usa un file EPUB, PDF, TXT o MD.");
-    const lessons = toLessons(parsed.sections);
+    const fullText = parsed.sections.map((x) => x.text).join("\n\n");
+    setUpload("Claude cerca l’indice e l’inizio di ogni capitolo…", 0.52);
+    let cuts = null; try { cuts = await findChapters(fullText, parsed.sections.map((x) => x.title).filter(Boolean)); } catch (e) { if (e?.code === "not_granted" || e?.code === "unavailable" || e?.code === "rate_limited") throw e; }
+    const lessons = toLessons(cuts ? sectionsFromCuts(fullText, cuts) : parsed.sections);
     if (!lessons.length) throw new Error("Non ho trovato abbastanza testo in questo file.");
     const id = hashId(file.name + "|" + file.size);
     setUpload(`Ho diviso il libro in ${lessons.length} lezioni. Claude lo sta studiando…`, 0.6);
@@ -608,7 +666,7 @@ async function handleFile(file) {
       title: str(a?.titolo || parsed.title || file.name.replace(/\.[^.]+$/, ""), 200), author: str(a?.autore || parsed.author, 200),
       thesis: str(a?.tesi, 800), principles: arr(a?.principi).slice(0, 12).map((p) => ({ nome: str(p?.nome, 80), sintesi: str(p?.sintesi, 300) })),
       sections: lessons.map((l, i) => ({ title: str(titles[i] || l.title || `Parte ${i + 1}`, 140), original: str(l.title, 140), subs: l.subs.slice(0, 30).map((x) => str(x, 120)), box: !!l.keep, chars: l.text.length })),
-      fileName: str(file.name, 200), createdAt: new Date().toISOString(), lastOpened: new Date().toISOString(), doneCount: 0, current: 0,
+      cuts: cuts || null, fileName: str(file.name, 200), createdAt: new Date().toISOString(), lastOpened: new Date().toISOString(), doneCount: 0, current: 0,
     };
     setUpload("Fatto. Apro la prima lezione…", 1);
     await Store.put("books", id, book);
@@ -731,7 +789,8 @@ async function reattach(file) {
   try {
     const ext = file.name.split(".").pop().toLowerCase();
     const p = ext === "pdf" ? await readPdf(file, (t) => (m.textContent = t)) : ext === "epub" ? await readEpub(file, (t) => (m.textContent = t)) : await readTxt(file);
-    const ls = toLessons(p.sections);
+    const ft = p.sections.map((x) => x.text).join("\n\n");
+    const ls = toLessons(state.book.cuts ? sectionsFromCuts(ft, state.book.cuts) : p.sections);
     if (ls.length !== state.book.sections.length) throw new Error("Questo file non corrisponde al libro: le parti non coincidono. Usa lo stesso file del primo caricamento.");
     await Texts.put(state.book.id, ls.map((x) => x.text)); renderLesson();
   } catch (e) { m.textContent = errText(e); m.className = "msg err"; }
