@@ -126,6 +126,18 @@ textarea, input[type=text] { width: 100%; font: 15px/1.5 var(--f-ui); color: var
 .dot.seen { border-color: var(--teal) }
 
 .section { display: grid; gap: 10px }
+.support { margin: 0; padding-left: 1.4em; display: grid; gap: 14px; max-width: 46em }
+.support li { padding-left: 4px }
+.support li::marker { font: 600 .85rem var(--f-ui); color: var(--teal) }
+.support b { font-family: var(--f-read); font-weight: 600; font-size: 1.02rem }
+.support p { margin-top: 3px; font-size: .94rem }
+.support .try { color: var(--muted) }
+.support .try span { color: var(--teal); font-weight: 600 }
+.notice { border: 1px dashed var(--teal); border-radius: 8px; padding: 14px; display: grid; gap: 10px; font-size: .93rem }
+.map-item { display: grid; gap: 10px; padding-top: 18px; border-top: 1px solid var(--line) }
+.tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap }
+.tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--muted); padding: .6rem .9rem }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--teal); font-weight: 600 }
 .journal-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center }
 .feedback { font-family: var(--f-read); white-space: pre-wrap; border-left: 3px solid var(--marker); padding-left: 14px }
 .chat { display: grid; gap: 10px }
@@ -364,11 +376,11 @@ const STYLE = "Rispondi sempre in italiano, con tono caldo e concreto, da coach 
 const profileLine = () => (state.profile ? `\nCHI È LA PERSONA (personalizza gli esempi su di lei): ${state.profile}` : "");
 
 async function analyzeBook(meta, lessons) {
-  let overview = lessons.map((l, i) => `### SEZIONE ${i + 1}${l.title ? " – " + l.title : ""}\n${l.text.slice(0, Math.max(800, Math.floor(110000 / lessons.length)))}`).join("\n\n");
+  let overview = lessons.map((l, i) => `### SEZIONE ${i + 1}${l.title ? " – " + l.title : ""}\n${l.text.slice(0, Math.max(1500, Math.floor(150000 / lessons.length)))}`).join("\n\n");
   const prompt = `${STYLE}
 Ti do estratti di un libro diviso in ${lessons.length} sezioni (per ogni sezione solo l'inizio). Titolo nei metadati: "${meta.title || "sconosciuto"}", autore: "${meta.author || "sconosciuto"}".
 Restituisci SOLO JSON con questa forma:
-{"titolo": string, "autore": string, "tesi": string (2 frasi: cosa promette il libro e come), "principi": [{"nome": string (max 5 parole), "sintesi": string (1 frase)}] (da 5 a 8), "titoliLezioni": [string] (esattamente ${lessons.length} titoli brevi, max 7 parole, uno per sezione nell'ordine, che dicano cosa si impara ad applicare)}
+{"titolo": string, "autore": string, "tesi": string (2 frasi: cosa promette il libro e come), "principi": [{"nome": string (max 5 parole), "sintesi": string (1 frase)}] (da 6 a 12: tutti i principi principali del libro, non tralasciarne), "titoliLezioni": [string] (esattamente ${lessons.length} titoli brevi, max 7 parole, uno per sezione nell'ordine, che dicano cosa si impara ad applicare)}
 Se una sezione è prefazione, indice o ringraziamenti, dalle comunque un titolo come "Introduzione".
 
 ${overview}`;
@@ -384,18 +396,33 @@ Questa è la lezione ${idx + 1} di ${book.sections.length}: "${book.sections[idx
 Leggi il testo della sezione qui sotto e trasformalo in una lezione per applicarlo nella vita di tutti i giorni.
 Restituisci SOLO JSON:
 {"ideaChiave": string (1 frase memorabile), "spiegazione": string (1 paragrafo di 80-120 parole che spiega l'idea con parole semplici), "citazione": string (una frase breve presa davvero dal testo, max 200 caratteri, nella lingua originale; stringa vuota se non adatta),
+"ideeSupporto": [{"idea": string (max 12 parole), "spiegazione": string (1-2 frasi su cosa dice il libro), "comeApplicarla": string (1 frase: azione concreta nella vita quotidiana)}] (TUTTI gli insegnamenti, le idee di supporto, i concetti, le tecniche e gli argomenti presenti nella sezione oltre all'idea chiave, nell'ordine in cui compaiono: di solito da 4 a 12. Non tralasciarne nessuno: chi legge deve trovare qui tutto ciò che la sezione insegna),
 "applicazioni": [{"ambito": "Lavoro"|"Relazioni"|"Te stesso"|"Soldi"|"Salute"|"Famiglia", "situazione": string (una situazione quotidiana concreta), "cosaFare": string (cosa fare esattamente)}] (esattamente 3, ambiti diversi),
 "sfida": {"titolo": string, "durata": string (es. "10 minuti"), "passi": [string] (3-4 passi pratici da fare oggi)},
 "domanda": string (una domanda di riflessione per la sera), "errore": string (l'errore più comune quando si prova ad applicarla, e come evitarlo, 1-2 frasi)}
 
 TESTO DELLA SEZIONE:
-${text.slice(0, 70000)}`;
+${text.slice(0, 140000)}`;
   const s = await getSample();
   return s.json(prompt, { modelTier: "default" });
 }
 
+/* Rebuild thesis and principles from every generated lesson, so nothing in the book is left out. */
+async function refreshPrinciples(book, lessons) {
+  const lines = book.sections.map((s, i) => {
+    const c = lessons[i]?.content; if (!c) return null;
+    return `Lezione ${i + 1} – ${s.title}: ${c.ideaChiave}${c.ideeSupporto?.length ? " | Idee di supporto: " + c.ideeSupporto.map((x) => x.idea).join("; ") : ""}`;
+  }).filter(Boolean).join("\n");
+  const s = await getSample();
+  return s.json(`${STYLE}
+Questi sono tutti gli insegnamenti estratti, lezione per lezione, dal libro "${book.title}" di ${book.author || "autore sconosciuto"}.
+Restituisci SOLO JSON: {"tesi": string (2 frasi), "principi": [{"nome": string (max 5 parole), "sintesi": string (1 frase)}] (da 6 a 12, che coprano TUTTO il libro)}
+
+${lines}`, { modelTier: "default" });
+}
+
 /* ---------- state ---------- */
-const state = { view: "home", books: [], book: null, lessons: {}, idx: 0, profile: "", chat: [], busy: false, uploadMsg: null, uploadErr: false, uploadPct: 0 };
+const state = { view: "home", pane: "lesson", books: [], book: null, lessons: {}, idx: 0, profile: "", chat: [], busy: false, uploadMsg: null, uploadErr: false, uploadPct: 0 };
 
 /* ---------- home ---------- */
 function renderHome() {
@@ -487,7 +514,7 @@ async function handleFile(file) {
     const titles = arr(a?.titoliLezioni);
     const book = {
       title: str(a?.titolo || parsed.title || file.name.replace(/\.[^.]+$/, ""), 200), author: str(a?.autore || parsed.author, 200),
-      thesis: str(a?.tesi, 800), principles: arr(a?.principi).slice(0, 8).map((p) => ({ nome: str(p?.nome, 80), sintesi: str(p?.sintesi, 300) })),
+      thesis: str(a?.tesi, 800), principles: arr(a?.principi).slice(0, 12).map((p) => ({ nome: str(p?.nome, 80), sintesi: str(p?.sintesi, 300) })),
       sections: lessons.map((l, i) => ({ title: str(titles[i] || l.title || `Parte ${i + 1}`, 140), chars: l.text.length })),
       fileName: str(file.name, 200), createdAt: new Date().toISOString(), lastOpened: new Date().toISOString(), doneCount: 0, current: 0,
     };
@@ -504,7 +531,7 @@ async function handleFile(file) {
 /* ---------- book view ---------- */
 async function openBook(id) {
   const b = state.books.find((x) => x.id === id); if (!b) return;
-  state.book = b; state.view = "book"; state.lessons = {}; state.chat = [];
+  state.book = b; state.view = "book"; state.pane = "lesson"; state.lessons = {}; state.chat = []; if (bulk) bulk.stop = true;
   app.replaceChildren(h("div", { class: "skeleton card" }, h("i", { style: "width:40%" }), h("i"), h("i", { style: "width:80%" })));
   try { for (const l of await Store.lessons(id)) state.lessons[l.n] = l; } catch {}
   const firstOpen = b.sections.findIndex((_, i) => !state.lessons[i]?.done);
@@ -540,16 +567,20 @@ function renderBook() {
         h("div", { class: "bar" }, h("i", { style: `width:${Math.round((done / total) * 100)}%` })),
         h("span", null, h("strong", null, String(streak())), streak() === 1 ? "giorno di fila" : "giorni di fila"),
         todayIdx >= 0 && todayIdx !== state.idx && h("button", { type: "button", onclick: () => selectLesson(todayIdx) }, "Vai alla lezione di oggi"))),
+    h("div", { class: "tabs", role: "tablist" },
+      h("button", { type: "button", role: "tab", "aria-selected": state.pane === "lesson" ? "true" : "false", onclick: () => { state.pane = "lesson"; renderBook(); } }, "Lezione"),
+      h("button", { type: "button", role: "tab", "aria-selected": state.pane === "map" ? "true" : "false", onclick: () => { state.pane = "map"; renderBook(); } }, "Tutti gli insegnamenti")),
     h("div", { class: "desk" },
       h("nav", { class: "path", "aria-label": "Percorso" }, h("div", { class: "label" }, "Il percorso"),
         b.sections.map((s, i) => {
           const l = state.lessons[i];
           return h("button", { type: "button", class: "lesson-item" + (i === state.idx ? " active" : ""), onclick: () => selectLesson(i), "aria-current": i === state.idx ? "step" : null },
             h("span", { class: "n" }, String(i + 1).padStart(2, "0")), h("span", { class: "t", title: s.title }, s.title),
+
             h("span", { class: "dot" + (l?.done ? " done" : l?.content ? " seen" : ""), "aria-label": l?.done ? "fatta" : l?.content ? "aperta" : "da fare" }));
         })),
       h("article", { id: "lesson-pane", style: "min-width:0" })));
-  renderLesson();
+  state.pane === "map" ? renderMap() : renderLesson();
 }
 
 function deleteControl() {
@@ -568,7 +599,7 @@ async function deleteBook() {
 }
 
 function selectLesson(i) {
-  state.idx = i; state.chat = state.lessons[i]?.chat ? [...state.lessons[i].chat] : [];
+  state.idx = i; state.pane = "lesson"; state.chat = state.lessons[i]?.chat ? [...state.lessons[i].chat] : [];
   state.book.current = i; saveBook(); renderBook();
   $("#lesson-pane")?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
 }
@@ -594,9 +625,8 @@ async function renderLesson() {
     return;
   }
   try {
-    const c = await generateLesson(b, i, chunks[i]);
-    if (state.idx !== i || state.book !== b) return;
-    l.content = sanitizeLesson(c); await saveLesson(i);
+    await ensureLesson(i);
+    if (state.idx !== i || state.book !== b || state.pane !== "lesson") return;
     renderBook();
   } catch (e) {
     if (state.idx !== i) return;
@@ -620,7 +650,27 @@ function sanitizeLesson(c) {
     applicazioni: arr(c?.applicazioni).slice(0, 3).map((a) => ({ ambito: str(a?.ambito, 30), situazione: str(a?.situazione, 400), cosaFare: str(a?.cosaFare, 500) })),
     sfida: { titolo: str(c?.sfida?.titolo, 120), durata: str(c?.sfida?.durata, 40), passi: arr(c?.sfida?.passi).slice(0, 5).map((p) => str(p, 300)) },
     domanda: str(c?.domanda, 400), errore: str(c?.errore, 500),
+    ideeSupporto: arr(c?.ideeSupporto).slice(0, 15).map((x) => ({ idea: str(x?.idea, 200), spiegazione: str(x?.spiegazione, 600), comeApplicarla: str(x?.comeApplicarla, 400) })).filter((x) => x.idea),
+    v: 2,
   };
+}
+
+/* Generate (or regenerate) one lesson's content; keeps the diary, chat and "done" state. */
+async function ensureLesson(i, force = false) {
+  const b = state.book, l = lessonDoc(i);
+  if (l.content && !force) return l.content;
+  const chunks = await Texts.get(b.id);
+  if (!chunks || !chunks[i]) throw { code: "no_text" };
+  const c = sanitizeLesson(await generateLesson(b, i, chunks[i]));
+  if (state.book !== b) throw { code: "cancelled" };
+  l.content = c; await saveLesson(i);
+  return c;
+}
+
+function supportList(c) {
+  return h("ol", { class: "support" }, c.ideeSupporto.map((x) => h("li", null,
+    h("b", null, x.idea), x.spiegazione && h("p", null, x.spiegazione),
+    x.comeApplicarla && h("p", { class: "try" }, h("span", null, "Prova: "), x.comeApplicarla))));
 }
 
 function lessonCard(head, l) {
@@ -635,6 +685,9 @@ function lessonCard(head, l) {
     h("div", { class: "section" }, h("span", { class: "label" }, "Idea chiave"), h("p", { class: "idea" }, h("span", { class: "mark" }, c.ideaChiave))),
     c.spiegazione && h("p", { class: "body" }, c.spiegazione),
     c.citazione && h("blockquote", { class: "quote", style: "margin:0" }, `“${c.citazione}”`),
+    c.ideeSupporto?.length
+      ? h("div", { class: "section" }, h("span", { class: "label" }, `Tutti gli insegnamenti di questa parte · ${c.ideeSupporto.length}`), supportList(c))
+      : h("div", { class: "notice" }, h("p", null, "Questa lezione è stata creata con la versione precedente e non elenca le idee di supporto."), regenButton(i, "Aggiorna la lezione")),
     c.applicazioni.length && h("div", { class: "section" }, h("span", { class: "label" }, "Come usarla nella tua giornata"),
       h("div", { class: "apps" }, c.applicazioni.map((a) => h("div", { class: "app" }, h("span", { class: "where" }, a.ambito), h("p", null, h("b", null, a.situazione)), h("p", null, a.cosaFare))))),
     h("div", { class: "challenge" },
@@ -643,9 +696,80 @@ function lessonCard(head, l) {
       h("div", null, doneBtn)),
     c.errore && h("p", { class: "pitfall" }, h("b", null, "Attenzione: "), c.errore),
     journal(l), coach(l),
+    h("div", { style: "display:flex;justify-content:flex-end" }, regenButton(i, "Rigenera questa lezione", true)),
     h("div", { style: "display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap" },
       i > 0 ? h("button", { type: "button", onclick: () => selectLesson(i - 1) }, "← Lezione precedente") : h("span"),
       i < state.book.sections.length - 1 && h("button", { type: "button", onclick: () => selectLesson(i + 1) }, "Lezione successiva →")));
+}
+
+function regenButton(i, label, ghost = false) {
+  const msg = h("span", { class: "msg" });
+  const btn = h("button", { type: "button", class: ghost ? "ghost" : "primary", onclick: async () => {
+    btn.disabled = true; msg.className = "msg"; msg.textContent = "Claude sta rileggendo questa parte del libro…";
+    try { await ensureLesson(i, true); if (state.idx === i && state.pane === "lesson") renderBook(); }
+    catch (e) { msg.className = "msg err"; msg.textContent = e?.code === "no_text" ? "Il testo del libro non è su questo dispositivo: ricarica il file dalla lezione." : errText(e); btn.disabled = false; }
+  } }, label);
+  return h("span", { class: "journal-actions" }, btn, msg);
+}
+
+/* ---------- map of every teaching in the book ---------- */
+let bulk = null; // { stop: boolean }
+function renderMap() {
+  const pane = $("#lesson-pane"), b = state.book;
+  const missing = b.sections.map((_, i) => i).filter((i) => !state.lessons[i]?.content?.ideeSupporto?.length);
+  const status = h("p", { class: "msg", id: "bulk-msg" });
+  const genBtn = h("button", { type: "button", class: "primary", hidden: !missing.length || !!bulk, onclick: () => generateAll(missing) },
+    `Genera le ${missing.length} lezioni mancanti`);
+  const stopBtn = h("button", { type: "button", hidden: !bulk, onclick: () => { if (bulk) bulk.stop = true; stopBtn.disabled = true; } }, "Ferma");
+  const princBtn = h("button", { type: "button", hidden: missing.length > 0, onclick: async () => {
+    princBtn.disabled = true; status.className = "msg"; status.textContent = "Claude sta rileggendo tutti gli insegnamenti…";
+    try {
+      const r = await refreshPrinciples(b, state.lessons);
+      if (r?.tesi) b.thesis = str(r.tesi, 800);
+      const p = arr(r?.principi).slice(0, 12).map((x) => ({ nome: str(x?.nome, 80), sintesi: str(x?.sintesi, 300) })).filter((x) => x.nome);
+      if (p.length) b.principles = p;
+      saveBook(); renderBook();
+    } catch (e) { status.className = "msg err"; status.textContent = errText(e); princBtn.disabled = false; }
+  } }, "Aggiorna i principi del libro");
+  const total = b.sections.reduce((n, _, i) => n + 1 + (state.lessons[i]?.content?.ideeSupporto?.length || 0), 0);
+
+  pane.replaceChildren(h("div", { class: "card lesson" },
+    h("div", { class: "section" },
+      h("span", { class: "label" }, "Mappa del libro"),
+      h("h2", null, "Tutti gli insegnamenti"),
+      h("p", { class: "msg" }, missing.length
+        ? `${b.sections.length - missing.length} lezioni su ${b.sections.length} sono pronte. Genera le altre per vedere tutto ciò che il libro insegna, in un colpo solo.`
+        : `${total} insegnamenti in ${b.sections.length} lezioni. Puoi aggiornare i principi del libro partendo da tutto il testo.`),
+      h("div", { class: "journal-actions" }, genBtn, stopBtn, princBtn), status),
+    b.sections.map((s, i) => {
+      const c = state.lessons[i]?.content;
+      return h("section", { class: "map-item" },
+        h("div", { style: "display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap" },
+          h("h3", null, `${i + 1}. ${s.title}`),
+          h("button", { type: "button", class: "ghost", onclick: () => { state.pane = "lesson"; selectLesson(i); } }, "Apri la lezione →")),
+        c ? [h("p", { class: "idea", style: "font-size:1.05rem" }, h("span", { class: "mark" }, c.ideaChiave)),
+             c.ideeSupporto?.length ? supportList(c) : h("p", { class: "msg" }, "Idee di supporto non ancora estratte: aggiorna questa lezione.")]
+          : h("p", { class: "msg" }, "Lezione non ancora generata."));
+    })));
+}
+
+async function generateAll(list) {
+  if (bulk) return; bulk = { stop: false }; const b = state.book;
+  renderMap();
+  let done = 0, failed = 0;
+  for (const i of list) {
+    if (bulk.stop || state.book !== b) break;
+    const m = $("#bulk-msg"); if (m) { m.className = "msg"; m.textContent = `Genero la lezione ${i + 1} di ${b.sections.length} (${done + 1} di ${list.length})…`; }
+    try { await ensureLesson(i, !!state.lessons[i]?.content); done++; }
+    catch (e) {
+      if (e?.code === "no_text") { bulk = null; if (state.pane === "map") { renderMap(); const m2 = $("#bulk-msg"); m2.className = "msg err"; m2.textContent = "Il testo del libro è solo sul dispositivo dove l’hai caricato. Apri una lezione e ricarica il file."; } return; }
+      if (e?.code === "rate_limited" || e?.code === "not_granted" || e?.code === "unavailable") { bulk = null; if (state.pane === "map") { renderMap(); const m2 = $("#bulk-msg"); m2.className = "msg err"; m2.textContent = errText(e); } return; }
+      failed++;
+    }
+    if (state.pane === "map" && state.book === b) renderMap();
+  }
+  bulk = null;
+  if (state.book === b && state.pane === "map") { renderBook(); const m = $("#bulk-msg"); if (m && failed) { m.className = "msg err"; m.textContent = `${failed} lezioni non sono riuscite: premi di nuovo per riprovare.`; } }
 }
 
 function journal(l) {
