@@ -1,7 +1,7 @@
 /* ===================== Stato ===================== */
 const KEY = 'giroConsegne.v1';
 const DEF = {
-  settings:{ base:null, apiKey:'', promiseMin:60, prepMin:15, serviceMin:3, maxStops:3, maxExtra:10, maxWait:5, mode:'TWO_WHEELER', speedKmh:22 },
+  settings:{ base:null, apiKey:'', promiseMin:60, prepMin:15, serviceMin:3, maxStops:3, maxExtra:10, maxWait:5, mode:'TWO_WHEELER', speedKmh:22, learn:1 },
   orders:[], drivers:[], cache:{}, ext:{}
 };
 let S = load();
@@ -144,6 +144,17 @@ async function addOrder({address, platform='Sito', name='', at=now(), promiseMin
   return o;
 }
 
+/* Il fattorino è rientrato davvero: confronta con la previsione e corregge le stime future */
+function learnFrom(trip){
+  if(!trip) return;
+  const svc = S.settings.serviceMin*MIN*trip.orderIds.length;
+  const planned = trip.ret - trip.dep - svc, actual = now() - trip.dep - svc;
+  if(planned < 5*MIN || actual < 3*MIN) return;
+  const ratio = actual / planned;
+  if(ratio < .4 || ratio > 2.5) return;                   // valori strani (es. "Rientrato" premuto per sbaglio)
+  const l = S.settings.learn || 1;
+  S.settings.learn = Math.min(1.8, Math.max(.5, l * (0.7 + 0.3*ratio)));
+}
 function deliverTrip(driver){
   const ids = new Set(driver.trip?.orderIds||[]);
   S.orders = S.orders.filter(o=>!ids.has(o.id));
@@ -187,9 +198,11 @@ async function syncCashdesk(snap){
       const st = S.settings;
       let deadline = r.due ? timeToday(r.due) : r.countdown!=null ? now() + (+r.countdown)*MIN : now() + st.promiseMin*MIN;
       const at = deadline - st.promiseMin*MIN;
-      await addOrder({ address: [r.street, [r.zip, r.city].filter(Boolean).join(' ')].filter(Boolean).join(', '),
+      const o = await addOrder({ address: [r.street, [r.zip, r.city].filter(Boolean).join(' ')].filter(Boolean).join(', '),
         platform: platformOf(r.text||''), name: [r.id && '#'+r.id, r.name].filter(Boolean).join(' '),
         at, deadline, readyAt: at + st.prepMin*MIN, extKey: key });
+      // orario molto più in là del solito: è un ordine con appuntamento
+      if(r.due && deadline - now() > (st.promiseMin+10)*MIN){ setWish(o, deadline); o.at = now(); o.readyAt = now(); save(); render(); }
       if(!gReady) await new Promise(res=>setTimeout(res,1100));   // limiti di OpenStreetMap
     }
   } finally { cdBusy = false; render(); }
@@ -202,14 +215,29 @@ function cashdeskStatus(){
   return `<div class="cd ok">✓ Collegato a Cashdesk · ${cd.rows.length} righe lette alle ${fmt(cd.at)}</div>`;
 }
 
+/* Orario richiesto dal cliente: si consegna tra 10 minuti prima e 10 minuti dopo */
+function setWish(o, wish){
+  if(wish){ o.wish = wish; o.notBefore = wish - 10*MIN; o.deadline = wish + 10*MIN; }
+  else { delete o.wish; delete o.notBefore; o.deadline = o.at + S.settings.promiseMin*MIN; }
+}
+
 /* ===================== Pianificazione ===================== */
 /* Valuta un giro: partenza dal locale a t0 (o quando l'ultimo ordine è pronto), consegne in ordine, ritorno. */
+/* Minuti di strada corretti con quanto imparato dai rientri veri */
+const ttL = (a,b) => Math.round(tt(a,b) * (S.settings.learn||1));
+/* Ordine con orario richiesto: si parte in modo da non arrivare prima di notBefore */
+const effReady = o => Math.max(o.readyAt, o.notBefore ? o.notBefore - ttL(S.settings.base,o)*MIN : 0);
 function evalTrip(stops, t0){
   const base = S.settings.base, svc = S.settings.serviceMin*MIN;
-  const dep = Math.max(t0, ...stops.map(o=>o.readyAt));
-  let t = dep, prev = base; const etas = [];
-  for(const o of stops){ t += tt(prev,o)*MIN; etas.push(t); t += svc; prev = o; }
-  return {dep, etas, ret: t + tt(prev,base)*MIN};
+  const run = dep => {
+    let t = dep, prev = base; const etas = [];
+    for(const o of stops){ t += ttL(prev,o)*MIN; etas.push(t); t += svc; prev = o; }
+    return {dep, etas, ret: t + ttL(prev,base)*MIN};
+  };
+  let r = run(Math.max(t0, ...stops.map(o=>o.readyAt)));
+  const shift = Math.max(0, ...stops.map((o,i)=> o.notBefore ? o.notBefore - r.etas[i] : 0));
+  if(shift > 0) r = run(r.dep + shift);   // parte più tardi per non arrivare in anticipo
+  return r;
 }
 
 /* Costruisce il prossimo giro per un fattorino libero a t0, partendo dall'ordine più urgente
@@ -218,14 +246,14 @@ function buildTrip(t0, pool){
   const st = S.settings;
   const sorted = [...pool].sort((a,b)=>a.deadline-b.deadline || a.readyAt-b.readyAt);
   // l'ordine più urgente tra quelli pronti entro poco; se nessuno è pronto, il più urgente in assoluto
-  const soon = sorted.filter(o=>o.readyAt <= t0 + st.maxWait*MIN);
+  const soon = sorted.filter(o=>effReady(o) <= t0 + st.maxWait*MIN);
   let trip = [ (soon[0] || sorted[0]) ];
   let ev = evalTrip(trip, t0);
   while(trip.length < st.maxStops){
     let best = null;
     for(const c of sorted){
       if(trip.includes(c)) continue;
-      if(c.readyAt > ev.dep + st.maxWait*MIN) continue;          // non far aspettare troppo il fattorino
+      if(effReady(c) > ev.dep + st.maxWait*MIN) continue;          // non far aspettare troppo il fattorino
       for(let pos=0; pos<=trip.length; pos++){
         const cand = [...trip.slice(0,pos), c, ...trip.slice(pos)];
         const e2 = evalTrip(cand, t0);
@@ -294,12 +322,16 @@ function autoUpdate(){
 }
 
 let lastTrips = [];
+const unpicked = new Set();   // ordini tolti a mano dal prossimo giro
 function render(){
   autoUpdate();
   const t = now();
   $('clock').textContent = fmt(t);
   const st = S.settings;
   $('baseInfo').textContent = st.base ? '📍 '+st.base.label : 'Imposta l\'indirizzo del locale per iniziare.';
+  const lp = Math.round(((st.learn||1)-1)*100);
+  $('learnInfo').textContent = lp===0 ? 'Le stime si correggono da sole ogni volta che premi "Rientrato".'
+    : `Corretto dai rientri veri: i fattorini sono ${Math.abs(lp)}% più ${lp<0?'veloci':'lenti'} della stima di base.`;
 
   // --- ordini ---
   const act = S.orders.filter(o=>o.status==='attesa').sort((a,b)=>a.deadline-b.deadline);
@@ -311,13 +343,14 @@ function render(){
     return `<div class="item">
       <div class="grow">
         <div class="addr">${esc(o.label||o.address)}</div>
-        <div class="meta">${platTag(o.platform)}${o.extKey?' <span class="badge">Cashdesk</span>':''} ${esc(o.name)} · entro <b>${fmt(o.deadline)}</b> (${left>=0?left+' min':'<span style="color:var(--bad)">in ritardo di '+(-left)+' min</span>'}) · pronto ${fmt(o.readyAt)}</div>
+        <div class="meta">${platTag(o.platform)}${o.extKey?' <span class="badge">Cashdesk</span>':''} ${esc(o.name)} · ${o.wish?`<b class="wish">⏰ alle ${fmt(o.wish)}</b> · `:''}entro <b>${fmt(o.deadline)}</b> (${left>=0?left+' min':'<span style="color:var(--bad)">in ritardo di '+(-left)+' min</span>'}) · pronto ${fmt(o.readyAt)}</div>
         ${o.geoError?`<div class="meta" style="color:var(--bad)">⚠ ${esc(o.geoError)} — <a href="#" data-regeo="${o.id}">riprova</a></div>`:''}
         ${o.lat==null && !o.geoError?'<div class="meta">Cerco l\'indirizzo…</div>':''}
         ${drv?`<div class="meta">🛵 in consegna con ${esc(drv.name)}</div>`:''}
       </div>
       <div style="display:flex;flex-direction:column;gap:4px">
         <button class="small" data-ready="${o.id}" title="Segna pronto adesso">Pronto</button>
+        <button class="small" data-wish="${o.id}" title="Orario richiesto dal cliente">⏰ Orario</button>
         <button class="small" data-del="${o.id}" title="Elimina">✕</button>
       </div></div>`;
   }).join('') : '<div class="empty">Nessun ordine in attesa.</div>';
@@ -369,14 +402,18 @@ function render(){
     const d = tr.driver, i = S.drivers.indexOf(d), col = TRIP_COL[i%TRIP_COL.length];
     const isNext = !firstOf.has(d.id); firstOf.add(d.id);
     const canGo = isNext && !d.out;
+    // se hai tolto qualche ordine dal prossimo giro, orari e rientro si ricalcolano senza
+    const kept = canGo ? tr.stops.filter(o=>!unpicked.has(o.id)) : tr.stops;
+    const ev = kept.length && kept.length < tr.stops.length ? evalTrip(kept, tr.dep) : tr;
+    const etaOf = o => kept.includes(o) ? ev.etas[ (ev===tr ? tr.stops : kept).indexOf(o) ] : null;
     const waitMin = Math.round((tr.dep - t)/MIN);
     const when = tr.dep <= t+MIN ? 'parte <b>adesso</b>' : `parte alle <b>${fmt(tr.dep)}</b>${(d.out||!isNext)?' (dopo il rientro)':waitMin>0?` (tra ${waitMin} min, quando gli ordini sono pronti)`:''}`;
     html += `<div class="trip ${canGo?'next':''}" style="--c:${col}">
       <div class="trip-head"><b>${esc(d.name)}</b><span class="meta">${when}</span>
         ${canGo?`<button class="small primary" style="margin-left:auto" data-go="${d.id}">Assegna e parti</button>`:''}</div>
-      <ul class="stops">${tr.stops.map((o,k)=>`<li><span class="grow">${esc(o.label||o.address)} ${platTag(o.platform)}<span class="meta"> · entro ${fmt(o.deadline)}</span></span>
-        <span class="eta ${etaClass(tr.etas[k],o.deadline)}">~${fmt(tr.etas[k])}</span></li>`).join('')}</ul>
-      <div class="ret">Rientro al locale ~<b>${fmt(tr.ret)}</b> · giro di ${Math.round((tr.ret-tr.dep)/MIN)} min · <a href="${mapsLink(tr.stops)}" target="_blank" rel="noopener">Apri in Google Maps</a></div></div>`;
+      <ul class="stops">${tr.stops.map((o,k)=>`<li class="${canGo&&unpicked.has(o.id)?'off':''}">${canGo?`<input type="checkbox" class="pick" data-oid="${o.id}" ${unpicked.has(o.id)?'':'checked'} title="Togli la spunta per lasciare questo ordine al locale">`:''}<span class="grow">${esc(o.label||o.address)} ${platTag(o.platform)}<span class="meta"> · ${o.wish?'⏰ alle '+fmt(o.wish):'entro '+fmt(o.deadline)}</span></span>
+        ${etaOf(o)!=null?`<span class="eta ${etaClass(etaOf(o),o.deadline)}">~${fmt(etaOf(o))}</span>`:'<span class="eta muted">resta al locale</span>'}</li>`).join('')}</ul>
+      ${kept.length?`<div class="ret">Rientro al locale ~<b>${fmt(ev.ret)}</b> · giro di ${Math.round((ev.ret-ev.dep)/MIN)} min · <a href="${mapsLink(kept)}" target="_blank" rel="noopener">Apri in Google Maps</a></div>`:''}</div>`;
   });
   if(!html) html = '<div class="empty">Nessuna consegna da pianificare.</div>';
   $('plan').innerHTML = html;
@@ -499,20 +536,28 @@ $('demoBtn').onclick = () => {
 };
 
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-del],[data-ready],[data-go],[data-back],[data-shift],[data-rmd],[data-regeo]'); if(!t) return;
+  if(e.target.classList?.contains('pick')) return;
+  const t = e.target.closest('[data-del],[data-ready],[data-go],[data-back],[data-shift],[data-rmd],[data-regeo],[data-wish]'); if(!t) return;
   const ds = t.dataset;
   if(ds.del){ S.orders = S.orders.filter(o=>o.id!==ds.del); S.drivers.forEach(d=>{ if(d.trip){ const k=d.trip.orderIds.indexOf(ds.del); if(k>=0){ d.trip.orderIds.splice(k,1); d.trip.etas.splice(k,1);} } }); }
   if(ds.ready){ const o=S.orders.find(x=>x.id===ds.ready); if(o) o.readyAt=Math.min(o.readyAt, now()); }
+  if(ds.wish){ const o=S.orders.find(x=>x.id===ds.wish); if(o){
+    const v = prompt('Orario richiesto dal cliente (es. 19:30).\nLascia vuoto per togliere l\'orario.', o.wish?fmt(o.wish):'');
+    if(v!==null){ const m=v.trim().match(/^(\d{1,2})[:.](\d{2})$/);
+      if(!v.trim()) setWish(o,null); else if(m) setWish(o, timeToday(m[1]+':'+m[2])); else alert('Scrivi l\'orario così: 19:30'); } } }
   if(ds.regeo){ e.preventDefault(); const o=S.orders.find(x=>x.id===ds.regeo); if(o){ o.geoError=null; geocode(o.address).then(g=>Object.assign(o,g)).catch(er=>o.geoError=er.message).finally(()=>{save();render();refreshMatrix();}); } }
   if(ds.go){
     const d=S.drivers.find(x=>x.id===ds.go), tr=lastTrips.find(x=>x.driver.id===ds.go);
-    if(d && tr){
-      const ev = evalTrip(tr.stops, now());     // ricalcola partendo da adesso
-      tr.stops.forEach(o=>{ o.status='in_consegna'; o.driverId=d.id; });
-      d.out = true; d.trip = {orderIds:tr.stops.map(o=>o.id), etas:ev.etas, dep:Math.max(now(),ev.dep), ret:ev.ret};
+    const stops = tr ? tr.stops.filter(o=>!unpicked.has(o.id)) : [];
+    if(d && tr && !stops.length) alert('Hai tolto tutti gli ordini da questo giro.');
+    if(d && stops.length){
+      const ev = evalTrip(stops, now());     // ricalcola partendo da adesso, solo con gli ordini spuntati
+      stops.forEach(o=>{ o.status='in_consegna'; o.driverId=d.id; });
+      tr.stops.forEach(o=>unpicked.delete(o.id));
+      d.out = true; d.trip = {orderIds:stops.map(o=>o.id), etas:ev.etas, dep:Math.max(now(),ev.dep), ret:ev.ret};
     }
   }
-  if(ds.back){ const d=S.drivers.find(x=>x.id===ds.back); if(d) deliverTrip(d); }
+  if(ds.back){ const d=S.drivers.find(x=>x.id===ds.back); if(d){ learnFrom(d.trip); deliverTrip(d); } }
   if(ds.shift){ const d=S.drivers.find(x=>x.id===ds.shift); if(d) d.onShift=!d.onShift; }
   if(ds.rmd){ const d=S.drivers.find(x=>x.id===ds.rmd); if(d && (!d.out || confirm('Il fattorino è in giro: rimuoverlo?'))){ if(d.out) deliverTrip(d); S.drivers=S.drivers.filter(x=>x!==d); } }
   save(); render();
@@ -526,3 +571,10 @@ if(typeof chrome!=='undefined' && chrome.storage){
 }
 if(S.settings.apiKey) checkKey().then(()=>{ render(); refreshMatrix(); }).catch(e=>console.warn('Chiave Google', e));
 setInterval(()=>{ render(); refreshMatrix(); }, 15000);
+
+document.addEventListener('change', e => {
+  if(!e.target.classList?.contains('pick')) return;
+  const id = e.target.dataset.oid;
+  e.target.checked ? unpicked.delete(id) : unpicked.add(id);
+  render();
+});

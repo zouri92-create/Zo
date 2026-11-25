@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Giro Consegne",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Pianifica i giri dei fattorini: quale consegna dare, orari di arrivo e di rientro.",
   "action": {
     "default_title": "Apri Giro Consegne",

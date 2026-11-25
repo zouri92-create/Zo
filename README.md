@@ -23,6 +23,9 @@ e i fattorini in turno, propone **quale giro dare a ogni fattorino**, in che ord
 - Avvisa in rosso gli ordini che arriveranno in ritardo con i fattorini disponibili.
 - "Assegna e parti" mette il fattorino in giro e toglie i suoi ordini dalla lista; ogni consegna sparisce da sola all'orario di arrivo previsto e il fattorino torna libero da solo all'orario di rientro ("Rientrato" serve solo se torna prima).
 - "Apri in Google Maps" apre il percorso del giro nel navigatore.
+- **Scelta degli ordini**: nel prossimo giro di ogni fattorino si può togliere la spunta a un ordine per lasciarlo al locale; orari e rientro si ricalcolano.
+- **Orario richiesto dal cliente** (⏰ Orario): l'ordine si consegna tra 10 minuti prima e 10 minuti dopo l'ora indicata, e il giro parte in modo da non arrivare in anticipo. Gli ordini importati da Cashdesk con un orario molto più in là del solito vengono trattati così da soli.
+- **Stime che imparano**: premendo "Rientrato" quando il fattorino torna, il programma confronta l'orario vero con quello previsto e corregge le stime successive.
 - **Ordini automatici da Cashdesk**: con la scheda di Cashdesk (`*.app.cashdesk.nl`) aperta sulla lista delle consegne, l'estensione legge la tabella ogni 5 secondi (colonne tipo Straße, PLZ, Stadt, Lieferzeit, Kurier, Bestellnummer) e aggiunge da sola gli ordini nuovi. Ignora ritiri, ordini con un corriere già assegnato e consegnati; toglie quelli spariti dalla lista. Non modifica nulla su Cashdesk.
 - Con una **chiave API Google** (Geocoding API + Routes API) usa indirizzi e tempi reali, con circa 3 richieste per ordine;
   senza chiave stima i tempi in linea d'aria con OpenStreetMap.
