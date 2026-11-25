@@ -1,6 +1,9 @@
 /* ---------- the library: list order from models.js, content from data/*.js ---------- */
 const slugify = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-const MODELS = RAW.map(([cat, title, tag], i) => ({ n: i + 1, cat, title, tag, slug: slugify(title), ...(LIB[i] || {}) }));
+/* The first 87 come from RAW in models.js; later groups carry their own area (c) and tagline (tg). */
+const LIB_BY_TITLE = Object.fromEntries(LIB.map((x) => [x.t, x]));
+const BASE = [...RAW.map(([cat, title, tag]) => ({ cat, title, tag })), ...LIB.filter((x) => x.c).map((x) => ({ cat: x.c, title: x.t, tag: x.tg }))];
+const MODELS = BASE.map((b, i) => ({ ...LIB_BY_TITLE[b.title], n: i + 1, ...b, slug: slugify(b.title) }));
 const BY = Object.fromEntries(MODELS.map((m) => [m.slug, m]));
 
 /* ---------- helpers ---------- */
@@ -88,7 +91,7 @@ function renderPlan() {
   const hello = S.nome ? `Ciao ${esc(S.nome)}.` : "Un modello mentale a settimana.";
   const exI = (day - 1) % 3; const exChecked = m && (S.ex[m.slug] || [])[exI];
   app.innerHTML = `<div class="stack">
-    <p class="muted">${hello} ${done ? `Hai completato ${done} modelli su ${MODELS.length}.` : `La biblioteca contiene ${MODELS.length} modelli in 7 aree.`}</p>
+    <p class="muted">${hello} ${done ? `Hai completato ${done} modelli su ${MODELS.length}.` : `La biblioteca contiene ${MODELS.length} modelli in ${Object.keys(CATS).length} aree.`}</p>
     ${m ? `<div class="hero">
       <span class="eyebrow">Settimana ${done + 1} · ${esc(SHORT[m.cat])}</span>
       <h1>${esc(m.title)}</h1>
@@ -96,7 +99,7 @@ function renderPlan() {
       <div class="days" aria-label="Giorno ${day} di 7">${[1,2,3,4,5,6,7].map((i) => `<i class="${i <= day ? "on" : ""}"></i>`).join("")}</div>
       <p class="small">Giorno ${day} di 7 · esercizi fatti ${exDone(m.slug)} di 3${day >= 7 ? " · la settimana è finita: se ti senti pronto, segnalo come completato" : ""}</p>
       <div class="row"><button id="openWeek">Apri la lezione</button>${day >= 7 ? `<button class="alt" id="finishWeek">Segna come completato</button>` : ""}</div>
-    </div>` : `<div class="hero"><span class="eyebrow">Percorso completato</span><h1>Hai studiato tutti gli 87 modelli</h1><p>Ripassali con i quiz o rileggi le schede nella Biblioteca.</p></div>`}
+    </div>` : `<div class="hero"><span class="eyebrow">Percorso completato</span><h1>Hai studiato tutti i ${MODELS.length} modelli</h1><p>Ripassali con i quiz o rileggi le schede nella Biblioteca.</p></div>`}
   </div>
   ${m ? `<section class="block" style="margin-top:18px">
     <h2>Oggi</h2>

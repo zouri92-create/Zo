@@ -7,8 +7,10 @@ const CATS = {
   qua: "Quantità, probabilità e ottimizzazione",
   eco: "Economia, strategia e risorse",
   com: "Comunicazione, creatività e narrazione",
+  lav: "Lavoro, prodotti e progetti",
+  app: "Apprendimento, abitudini e cambiamento",
 };
-const SHORT = { rag: "Ragionamento", fis: "Fisica", evo: "Evoluzione", sis: "Sistemi", qua: "Quantità", eco: "Economia", com: "Comunicazione" };
+const SHORT = { rag: "Ragionamento", fis: "Fisica", evo: "Evoluzione", sis: "Sistemi", qua: "Quantità", eco: "Economia", com: "Comunicazione", lav: "Lavoro", app: "Apprendimento" };
 const RAW = [
  ["rag","La mappa non è il territorio","Ogni modello semplifica la realtà: è utile finché ricordi cosa lascia fuori."],
  ["rag","Il cerchio di competenza","Sapere dove finisce ciò che conosci davvero vale più di quanto sai."],

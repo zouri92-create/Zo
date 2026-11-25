@@ -15,7 +15,7 @@ Il testo del libro resta nel browser (IndexedDB); lezioni e progressi sono salva
 
 # ZO – Modelli Mentali
 
-`zo.html`: biblioteca **offline** di 87 modelli mentali, per impararli uno a settimana e usarli nella vita di tutti i giorni. Non serve internet né un account: tutto il contenuto è dentro il file e i progressi restano nel browser.
+`zo.html`: biblioteca **offline** di modelli mentali (87 iniziali + i gruppi dal PDF dei 169, vedi `zo-src/elenco-169.md`), per impararli uno a settimana e usarli nella vita di tutti i giorni. Non serve internet né un account: tutto il contenuto è dentro il file e i progressi restano nel browser.
 
 - **Il tuo piano**: modello della settimana (giorno X di 7), esercizio e domanda del giorno, progresso per area, prossime settimane.
 - **Biblioteca**: 87 schede complete, con ricerca e filtri per area e per stato. Ogni scheda ha lettura Rapida o Approfondita, segnali per riconoscere il modello, esempi quotidiani, 3 esercizi da spuntare, domande da farsi, l'errore da evitare, un quiz e i modelli della stessa area.
