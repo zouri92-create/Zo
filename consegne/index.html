@@ -1,0 +1,601 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Giro Consegne</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+:root{
+  --bg:#f5f4f0; --card:#ffffff; --ink:#1d1c1a; --muted:#6b6862; --line:#e2dfd8;
+  --accent:#d2491d; --ok:#1f8a4c; --warn:#c98a00; --bad:#c62828; --chip:#efece6;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#161513; --card:#201f1c; --ink:#efece6; --muted:#a19d95; --line:#34322e;
+    --accent:#ff7a45; --ok:#4cc17e; --warn:#e8b43a; --bad:#ef5350; --chip:#2b2a26;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:0;z-index:1000;flex-wrap:wrap}
+header h1{font-size:18px;margin:0;font-weight:700}
+header .clock{font-variant-numeric:tabular-nums;font-size:18px;font-weight:600;margin-left:auto}
+.badge{font-size:12px;padding:2px 8px;border-radius:99px;background:var(--chip);color:var(--muted)}
+.badge.on{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}
+main{display:grid;grid-template-columns:340px 1fr 360px;gap:16px;padding:16px;align-items:start}
+@media (max-width:1150px){main{grid-template-columns:1fr 1fr}.col-plan{grid-column:1 / -1;order:-1}}
+@media (max-width:720px){main{grid-template-columns:1fr;padding:12px}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:16px}
+.card h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+.card h2 .count{margin-left:auto}
+label{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px}
+input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
+textarea{min-height:80px;resize:vertical}
+.row{display:flex;gap:8px}.row>*{flex:1;min-width:0}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--chip);color:var(--ink);padding:8px 12px;border-radius:8px}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+button.small{padding:4px 8px;font-size:12px}
+button:disabled{opacity:.5;cursor:default}
+.list{display:flex;flex-direction:column;gap:8px}
+.item{border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;gap:8px;align-items:flex-start}
+.item .grow{flex:1;min-width:0}
+.item .addr{font-weight:600;overflow-wrap:anywhere}
+.meta{font-size:12px;color:var(--muted)}
+.plat{font-size:11px;font-weight:700;padding:1px 6px;border-radius:6px;color:#fff;white-space:nowrap}
+.trip{border:1px solid var(--line);border-left:5px solid var(--c,var(--accent));border-radius:10px;padding:10px 12px;margin-bottom:10px}
+.trip.next{box-shadow:0 0 0 2px color-mix(in srgb,var(--c) 35%,transparent)}
+.trip-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.trip-head b{font-size:15px}
+.stops{margin:8px 0 6px;padding:0;list-style:none;counter-reset:s}
+.stops li{counter-increment:s;display:flex;gap:8px;align-items:center;padding:4px 0;border-top:1px dashed var(--line)}
+.stops li::before{content:counter(s);width:20px;height:20px;border-radius:50%;background:var(--c);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;flex:none}
+.eta{margin-left:auto;font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:600}
+.eta.ok{color:var(--ok)}.eta.warn{color:var(--warn)}.eta.bad{color:var(--bad)}
+.ret{font-size:13px;color:var(--muted)}
+.ret b{color:var(--ink)}
+.alert{border-radius:10px;padding:10px 12px;margin-bottom:12px;background:color-mix(in srgb,var(--bad) 14%,transparent);color:var(--bad);font-weight:600}
+.alert.info{background:var(--chip);color:var(--muted);font-weight:400}
+#map{height:340px;border-radius:10px;border:1px solid var(--line)}
+.driver{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.dot{width:10px;height:10px;border-radius:50%;flex:none}
+details summary{cursor:pointer;font-weight:600}
+.muted{color:var(--muted)}
+.empty{color:var(--muted);text-align:center;padding:16px 4px}
+.kpis{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.kpi{flex:1;min-width:90px;background:var(--chip);border-radius:10px;padding:8px 10px}
+.kpi b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
+.kpi span{font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <h1>🛵 Giro Consegne</h1>
+  <span id="gBadge" class="badge">Tempi stimati (senza Google)</span>
+  <span class="clock" id="clock">--:--</span>
+</header>
+
+<main>
+  <!-- Colonna 1: ordini -->
+  <section class="col-orders">
+    <div class="card">
+      <h2>➕ Nuovo ordine</h2>
+      <form id="orderForm" autocomplete="off">
+        <label>Indirizzo di consegna</label>
+        <input id="oAddr" required placeholder="Via Roma 10, Città">
+        <div class="row">
+          <div><label>Piattaforma</label>
+            <select id="oPlat">
+              <option>Sito</option><option>Just Eat</option><option>Uber Eats</option><option>Wolt</option><option>Telefono</option>
+            </select></div>
+          <div><label>Cliente / n° ordine</label><input id="oName" placeholder="opzionale"></div>
+        </div>
+        <div class="row">
+          <div><label>Ricevuto alle</label><input id="oAt" type="time"></div>
+          <div><label>Attesa promessa (min)</label><input id="oPromise" type="number" min="10" step="5"></div>
+          <div><label>Pronto tra (min)</label><input id="oPrep" type="number" min="0" step="5"></div>
+        </div>
+        <div style="margin-top:12px"><button class="primary" style="width:100%">Aggiungi ordine</button></div>
+        <div id="formMsg" class="meta" style="margin-top:6px"></div>
+      </form>
+      <details style="margin-top:12px">
+        <summary>Incolla più ordini</summary>
+        <p class="meta">Una riga per ordine: <code>indirizzo ; piattaforma ; ora promessa (HH:MM)</code>. Piattaforma e ora sono facoltative.</p>
+        <textarea id="bulk" placeholder="Via Dante 4, Milano ; Wolt ; 20:45"></textarea>
+        <button id="bulkBtn" style="margin-top:6px">Importa</button>
+      </details>
+    </div>
+
+    <div class="card">
+      <h2>🧾 Ordini da consegnare <span class="badge count" id="pendCount">0</span></h2>
+      <div class="list" id="orderList"></div>
+    </div>
+  </section>
+
+  <!-- Colonna 2: piano -->
+  <section class="col-plan">
+    <div class="card">
+      <h2>🗺️ Piano consegne <span class="meta" style="margin-left:auto" id="planTime"></span></h2>
+      <div class="kpis" id="kpis"></div>
+      <div id="alerts"></div>
+      <div id="plan"></div>
+    </div>
+    <div class="card"><div id="map"></div></div>
+  </section>
+
+  <!-- Colonna 3: autisti + impostazioni -->
+  <section class="col-side">
+    <div class="card">
+      <h2>👤 Fattorini</h2>
+      <div class="list" id="driverList"></div>
+      <div class="row" style="margin-top:10px">
+        <input id="dName" placeholder="Nome fattorino">
+        <button id="dAdd" style="flex:none">Aggiungi</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>⚙️ Impostazioni</h2>
+      <label>Indirizzo del locale (partenza)</label>
+      <div class="row"><input id="sBase" placeholder="Via del locale 1, Città"><button id="sBaseBtn" style="flex:none">Imposta</button></div>
+      <div class="meta" id="baseInfo"></div>
+      <label>Chiave API Google Maps</label>
+      <div class="row"><input id="sKey" type="password" placeholder="AIza..."><button id="sKeyBtn" style="flex:none">Collega</button></div>
+      <div class="meta">Serve per indirizzi precisi e tempi reali con traffico (Maps JavaScript API + Geocoding + Routes API). Senza chiave i tempi sono stimati in linea d'aria.</div>
+      <div class="row">
+        <div><label>Attesa promessa (min)</label><input id="sPromise" type="number" min="10" step="5"></div>
+        <div><label>Preparazione (min)</label><input id="sPrep" type="number" min="0" step="5"></div>
+      </div>
+      <div class="row">
+        <div><label>Sosta per consegna (min)</label><input id="sService" type="number" min="0" step="1"></div>
+        <div><label>Max consegne per giro</label><input id="sMaxStops" type="number" min="1" max="8"></div>
+      </div>
+      <div class="row">
+        <div><label>Ritardo max aggiunto a un ordine per abbinarne un altro (min)</label><input id="sMaxExtra" type="number" min="0" step="1"></div>
+        <div><label>Attesa max del fattorino per un ordine non pronto (min)</label><input id="sMaxWait" type="number" min="0" step="1"></div>
+      </div>
+      <div class="row">
+        <div><label>Mezzo</label><select id="sMode"><option value="TWO_WHEELER">Scooter</option><option value="DRIVE">Auto</option></select></div>
+        <div><label>Velocità media senza Google (km/h)</label><input id="sSpeed" type="number" min="5" step="1"></div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button id="demoBtn">Carica esempio</button>
+        <button id="clearBtn">Svuota consegnati</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+/* ===================== Stato ===================== */
+const KEY = 'giroConsegne.v1';
+const DEF = {
+  settings:{ base:null, apiKey:'', promiseMin:60, prepMin:15, serviceMin:3, maxStops:3, maxExtra:10, maxWait:5, mode:'TWO_WHEELER', speedKmh:22 },
+  orders:[], drivers:[], cache:{}
+};
+let S = load();
+function load(){
+  try{ const s = JSON.parse(localStorage.getItem(KEY)); if(s) return {...DEF, ...s, settings:{...DEF.settings, ...s.settings}}; }catch(e){}
+  return structuredClone(DEF);
+}
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+const uid = () => Math.random().toString(36).slice(2,9);
+const MIN = 60000;
+const now = () => Date.now();
+const fmt = t => new Date(t).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const PLAT_COL = {'Sito':'#6d4cc2','Just Eat':'#ff8000','Uber Eats':'#06c167','Wolt':'#00a5d8','Telefono':'#7a7468'};
+const TRIP_COL = ['#d2491d','#1f6fd1','#1f8a4c','#a83fb0','#c98a00','#0f8f8f','#b0304a','#5560c9'];
+
+/* ===================== Google Maps ===================== */
+let gReady = false;
+function loadGoogle(key){
+  return new Promise((res, rej) => {
+    if(!key) return rej(new Error('nessuna chiave'));
+    if(window.google?.maps?.importLibrary){ gReady = true; return res(); }
+    window.__gmReady = () => { gReady = true; res(); };
+    const s = document.createElement('script');
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&loading=async&callback=__gmReady&language=it&region=IT`;
+    s.async = true; s.onerror = () => rej(new Error('caricamento fallito'));
+    window.gm_authFailure = () => { gReady = false; setBadge(); alert('Google Maps ha rifiutato la chiave API. Controlla che sia valida e che le API siano abilitate.'); };
+    document.head.appendChild(s);
+  });
+}
+function setBadge(){
+  const b = $('gBadge');
+  b.textContent = gReady ? 'Google Maps collegato · tempi con traffico' : 'Tempi stimati (senza Google)';
+  b.classList.toggle('on', gReady);
+}
+
+/* Geocodifica: Google se disponibile, altrimenti OpenStreetMap */
+async function geocode(address){
+  const m = address.match(/^\s*(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)\s*$/);
+  if(m) return {lat:+m[1], lng:+m[2], label:address};
+  if(gReady){
+    const {Geocoder} = await google.maps.importLibrary('geocoding');
+    const opts = {address, region:'it'};
+    if(S.settings.base) opts.bounds = { north:S.settings.base.lat+.15, south:S.settings.base.lat-.15, east:S.settings.base.lng+.2, west:S.settings.base.lng-.2 };
+    const r = await new Geocoder().geocode(opts);
+    const g = r.results[0]; if(!g) throw new Error('Indirizzo non trovato');
+    return {lat:g.geometry.location.lat(), lng:g.geometry.location.lng(), label:g.formatted_address};
+  }
+  let url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=it&q=' + encodeURIComponent(address);
+  if(S.settings.base){ const b=S.settings.base; url += `&viewbox=${b.lng-.2},${b.lat+.15},${b.lng+.2},${b.lat-.15}`; }
+  const r = await fetch(url, {headers:{'Accept-Language':'it'}});
+  const j = await r.json();
+  if(!j[0]) throw new Error('Indirizzo non trovato');
+  return {lat:+j[0].lat, lng:+j[0].lon, label:j[0].display_name.split(',').slice(0,3).join(',')};
+}
+
+/* ===================== Tempi di viaggio ===================== */
+const pkey = p => p.lat.toFixed(5)+','+p.lng.toFixed(5);
+function haversineKm(a,b){
+  const R=6371, r=x=>x*Math.PI/180;
+  const dLat=r(b.lat-a.lat), dLng=r(b.lng-a.lng);
+  const h=Math.sin(dLat/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dLng/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+/* minuti da a -> b */
+function tt(a,b){
+  if(pkey(a)===pkey(b)) return 0;
+  const c = S.cache[pkey(a)+'>'+pkey(b)];
+  if(c && now()-c.at < 45*MIN) return c.m;
+  const km = haversineKm(a,b)*1.35;           // le strade non sono in linea d'aria
+  return Math.round(km / S.settings.speedKmh * 60 + 2);   // +2 min parcheggio/partenza
+}
+let matrixBusy = false;
+async function refreshMatrix(){
+  if(!gReady || matrixBusy || !S.settings.base) return;
+  const pts = [S.settings.base, ...activeOrders().filter(o=>o.lat!=null)];
+  const uniq = [...new Map(pts.map(p=>[pkey(p),{lat:p.lat,lng:p.lng}])).values()];
+  const stale = (a,b) => { const c=S.cache[pkey(a)+'>'+pkey(b)]; return !c || now()-c.at > 40*MIN; };
+  const need = uniq.filter(a => uniq.some(b => pkey(a)!==pkey(b) && (stale(a,b)||stale(b,a))));
+  if(!need.length) return;
+  matrixBusy = true;
+  try{
+    // per ogni punto da aggiornare: righe (need -> tutti) e colonne (tutti -> need)
+    const chunks = (arr,n)=>arr.reduce((acc,x,i)=>(i%n?acc[acc.length-1].push(x):acc.push([x]),acc),[]);
+    const jobs = [];
+    for(const o of chunks(need,10)) for(const d of chunks(uniq,25)) jobs.push([o,d]);
+    for(const o of chunks(uniq,25)) for(const d of chunks(need,10)) jobs.push([o,d]);
+    for(const [o,d] of jobs) await routeMatrix(o,d);
+    save(); render();
+  }catch(e){ console.warn('Routes API', e); }
+  finally{ matrixBusy = false; }
+}
+async function routeMatrix(origins, dests){
+  const wp = p => ({waypoint:{location:{latLng:{latitude:p.lat,longitude:p.lng}}}});
+  const r = await fetch('https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-Goog-Api-Key':S.settings.apiKey,'X-Goog-FieldMask':'originIndex,destinationIndex,duration,condition'},
+    body: JSON.stringify({origins:origins.map(wp), destinations:dests.map(wp), travelMode:S.settings.mode, routingPreference: S.settings.mode==='DRIVE'?'TRAFFIC_AWARE':undefined, languageCode:'it'})
+  });
+  if(!r.ok) throw new Error('Routes API '+r.status+': '+(await r.text()).slice(0,200));
+  const rows = await r.json();
+  for(const e of rows){
+    if(e.condition!=='ROUTE_EXISTS' || !e.duration) continue;
+    const a=origins[e.originIndex], b=dests[e.destinationIndex];
+    S.cache[pkey(a)+'>'+pkey(b)] = {m: Math.ceil(parseInt(e.duration)/60), at: now()};
+  }
+}
+
+/* ===================== Ordini e fattorini ===================== */
+const activeOrders = () => S.orders.filter(o=>o.status!=='consegnato');
+const pendingOrders = () => S.orders.filter(o=>o.status==='attesa' && o.lat!=null);
+
+async function addOrder({address, platform='Sito', name='', at=now(), promiseMin, prepMin, deadline}){
+  const st = S.settings;
+  const o = { id:uid(), address, platform, name, at,
+    deadline: deadline ?? at + (promiseMin ?? st.promiseMin)*MIN,
+    readyAt: at + (prepMin ?? st.prepMin)*MIN,
+    status:'attesa', lat:null, lng:null };
+  S.orders.push(o); save(); render();
+  try{ Object.assign(o, await geocode(address)); o.geoError=null; }
+  catch(e){ o.geoError = e.message; }
+  save(); render(); refreshMatrix();
+  return o;
+}
+
+function deliverTrip(driver){
+  for(const id of driver.trip?.orderIds||[]){ const o=S.orders.find(x=>x.id===id); if(o){ o.status='consegnato'; o.deliveredAt=now(); } }
+  driver.trip=null; driver.out=false;
+  save(); render();
+}
+
+/* ===================== Pianificazione ===================== */
+/* Valuta un giro: partenza dal locale a t0 (o quando l'ultimo ordine è pronto), consegne in ordine, ritorno. */
+function evalTrip(stops, t0){
+  const base = S.settings.base, svc = S.settings.serviceMin*MIN;
+  const dep = Math.max(t0, ...stops.map(o=>o.readyAt));
+  let t = dep, prev = base; const etas = [];
+  for(const o of stops){ t += tt(prev,o)*MIN; etas.push(t); t += svc; prev = o; }
+  return {dep, etas, ret: t + tt(prev,base)*MIN};
+}
+
+/* Costruisce il prossimo giro per un fattorino libero a t0, partendo dall'ordine più urgente
+   e aggiungendo gli ordini vicini finché nessuno sfora la promessa (o il ritardo massimo aggiunto). */
+function buildTrip(t0, pool){
+  const st = S.settings;
+  const sorted = [...pool].sort((a,b)=>a.deadline-b.deadline || a.readyAt-b.readyAt);
+  // l'ordine più urgente tra quelli pronti entro poco; se nessuno è pronto, il più urgente in assoluto
+  const soon = sorted.filter(o=>o.readyAt <= t0 + st.maxWait*MIN);
+  let trip = [ (soon[0] || sorted[0]) ];
+  let ev = evalTrip(trip, t0);
+  while(trip.length < st.maxStops){
+    let best = null;
+    for(const c of sorted){
+      if(trip.includes(c)) continue;
+      if(c.readyAt > ev.dep + st.maxWait*MIN) continue;          // non far aspettare troppo il fattorino
+      for(let pos=0; pos<=trip.length; pos++){
+        const cand = [...trip.slice(0,pos), c, ...trip.slice(pos)];
+        const e2 = evalTrip(cand, t0);
+        let ok = true;
+        for(let i=0;i<cand.length && ok;i++){
+          const o = cand[i];
+          if(o===c){
+            // il nuovo ordine deve arrivare in tempo, a meno che non sia già comunque in ritardo
+            const alone = evalTrip([c], ev.ret).etas[0];
+            if(e2.etas[i] > o.deadline && e2.etas[i] >= alone) ok = false;
+          } else {
+            const old = ev.etas[trip.indexOf(o)];
+            if(e2.etas[i] - old > st.maxExtra*MIN) ok = false;
+            if(e2.etas[i] > o.deadline && old <= o.deadline) ok = false;   // non far diventare tardi chi era in orario
+          }
+        }
+        if(!ok) continue;
+        const cost = e2.ret - ev.ret;
+        if(!best || cost < best.cost) best = {cost, cand, e2};
+      }
+    }
+    if(!best) break;
+    trip = best.cand; ev = best.e2;
+  }
+  return {stops:trip, ...ev};
+}
+
+function plan(){
+  const t = now();
+  const drivers = S.drivers.filter(d=>d.onShift);
+  const avail = new Map(drivers.map(d=>[d.id, d.out && d.trip ? Math.max(t, d.trip.ret) : t]));
+  let pool = pendingOrders();
+  const trips = [];
+  let guard = 0;
+  while(pool.length && drivers.length && guard++ < 60){
+    const d = drivers.reduce((a,b)=>avail.get(a.id)<=avail.get(b.id)?a:b);
+    const tr = buildTrip(avail.get(d.id), pool);
+    tr.driver = d;
+    trips.push(tr);
+    pool = pool.filter(o=>!tr.stops.includes(o));
+    avail.set(d.id, tr.ret);
+  }
+  return trips;
+}
+
+/* ===================== Rendering ===================== */
+let map, layer;
+function initMap(){
+  if(!window.L){ document.getElementById('map').innerHTML='<div class="empty">Mappa non disponibile (nessuna connessione).</div>'; return; }
+  map = L.map('map',{zoomControl:true}).setView([41.9,12.5],5);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+  layer = L.layerGroup().addTo(map);
+}
+const pin = (color, text) => L.divIcon({className:'', iconSize:[26,26], iconAnchor:[13,13],
+  html:`<div style="width:26px;height:26px;border-radius:50%;background:${color};color:#fff;border:2px solid #fff;box-shadow:0 1px 4px #0006;display:grid;place-items:center;font:700 12px system-ui">${text}</div>`});
+
+function etaClass(eta, deadline){
+  const slack = (deadline-eta)/MIN;
+  return slack < 0 ? 'bad' : slack < 8 ? 'warn' : 'ok';
+}
+function platTag(p){ return `<span class="plat" style="background:${PLAT_COL[p]||'#777'}">${esc(p)}</span>`; }
+
+let lastTrips = [];
+function render(){
+  const t = now();
+  $('clock').textContent = fmt(t);
+  const st = S.settings;
+  $('baseInfo').textContent = st.base ? '📍 '+st.base.label : 'Imposta l\'indirizzo del locale per iniziare.';
+
+  // --- ordini ---
+  const act = activeOrders().sort((a,b)=>a.deadline-b.deadline);
+  $('pendCount').textContent = S.orders.filter(o=>o.status==='attesa').length;
+  $('orderList').innerHTML = act.length ? act.map(o=>{
+    const left = Math.round((o.deadline-t)/MIN);
+    const drv = o.status==='in_consegna' ? S.drivers.find(d=>d.id===o.driverId) : null;
+    return `<div class="item">
+      <div class="grow">
+        <div class="addr">${esc(o.label||o.address)}</div>
+        <div class="meta">${platTag(o.platform)} ${esc(o.name)} · entro <b>${fmt(o.deadline)}</b> (${left>=0?left+' min':'<span style="color:var(--bad)">in ritardo di '+(-left)+' min</span>'}) · pronto ${fmt(o.readyAt)}</div>
+        ${o.geoError?`<div class="meta" style="color:var(--bad)">⚠ ${esc(o.geoError)} — <a href="#" data-regeo="${o.id}">riprova</a></div>`:''}
+        ${o.lat==null && !o.geoError?'<div class="meta">Cerco l\'indirizzo…</div>':''}
+        ${drv?`<div class="meta">🛵 in consegna con ${esc(drv.name)}</div>`:''}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <button class="small" data-ready="${o.id}" title="Segna pronto adesso">Pronto</button>
+        <button class="small" data-del="${o.id}" title="Elimina">✕</button>
+      </div></div>`;
+  }).join('') : '<div class="empty">Nessun ordine aperto.</div>';
+
+  // --- fattorini ---
+  $('driverList').innerHTML = S.drivers.length ? S.drivers.map((d,i)=>{
+    const col = TRIP_COL[i%TRIP_COL.length];
+    let state = !d.onShift ? '<span class="muted">fuori turno</span>'
+      : d.out && d.trip ? `in giro · rientro ~<b>${fmt(d.trip.ret)}</b>${d.trip.ret<t?' <span style="color:var(--warn)">(atteso)</span>':''}`
+      : '<span style="color:var(--ok)">al locale, libero</span>';
+    return `<div class="driver"><span class="dot" style="background:${col}"></span>
+      <div class="grow" style="flex:1"><b>${esc(d.name)}</b><div class="meta">${state}</div></div>
+      ${d.out?`<button class="small" data-back="${d.id}">Rientrato</button>`:''}
+      <button class="small" data-shift="${d.id}">${d.onShift?'Fine turno':'In turno'}</button>
+      <button class="small" data-rmd="${d.id}">✕</button></div>`;
+  }).join('') : '<div class="empty">Aggiungi almeno un fattorino.</div>';
+
+  // --- piano ---
+  const alerts = [];
+  if(!st.base) alerts.push('<div class="alert info">Imposta l\'indirizzo del locale nelle impostazioni.</div>');
+  const trips = st.base ? plan() : [];
+  lastTrips = trips;
+  if(st.base && pendingOrders().length && !S.drivers.some(d=>d.onShift)) alerts.push('<div class="alert">Ci sono ordini ma nessun fattorino in turno.</div>');
+  const late = trips.flatMap(tr=>tr.stops.filter((o,i)=>tr.etas[i]>o.deadline));
+  if(late.length) alerts.push(`<div class="alert">⚠ ${late.length} ${late.length===1?'ordine arriverà':'ordini arriveranno'} oltre l'orario promesso con i fattorini attuali. Valuta un fattorino in più o avvisa il cliente.</div>`);
+  $('alerts').innerHTML = alerts.join('');
+
+  const onShift = S.drivers.filter(d=>d.onShift);
+  const lastRet = trips.length ? Math.max(...trips.map(x=>x.ret)) : null;
+  $('kpis').innerHTML = `
+    <div class="kpi"><b>${pendingOrders().length}</b><span>da assegnare</span></div>
+    <div class="kpi"><b>${onShift.filter(d=>!d.out).length}/${onShift.length}</b><span>fattorini liberi</span></div>
+    <div class="kpi"><b style="color:${late.length?'var(--bad)':'var(--ok)'}">${late.length}</b><span>in ritardo previsto</span></div>
+    <div class="kpi"><b>${lastRet?fmt(lastRet):'—'}</b><span>fine ultimo giro</span></div>`;
+  $('planTime').textContent = 'aggiornato '+fmt(t);
+
+  const firstOf = new Set();
+  const outTrips = S.drivers.filter(d=>d.onShift && d.out && d.trip);
+  let html = '';
+  for(const d of outTrips){
+    const i = S.drivers.indexOf(d), col = TRIP_COL[i%TRIP_COL.length];
+    html += `<div class="trip" style="--c:${col};opacity:.75">
+      <div class="trip-head"><b>${esc(d.name)}</b><span class="badge">in giro dalle ${fmt(d.trip.dep)}</span></div>
+      <ul class="stops">${d.trip.orderIds.map((id,k)=>{const o=S.orders.find(x=>x.id===id); if(!o) return ''; const eta=d.trip.etas[k];
+        return `<li><span class="grow">${esc(o.label||o.address)} ${platTag(o.platform)}</span><span class="eta ${etaClass(eta,o.deadline)}">~${fmt(eta)}</span></li>`;}).join('')}</ul>
+      <div class="ret">Rientro previsto <b>${fmt(d.trip.ret)}</b></div></div>`;
+  }
+  trips.forEach(tr=>{
+    const d = tr.driver, i = S.drivers.indexOf(d), col = TRIP_COL[i%TRIP_COL.length];
+    const isNext = !firstOf.has(d.id); firstOf.add(d.id);
+    const canGo = isNext && !d.out;
+    const waitMin = Math.round((tr.dep - t)/MIN);
+    const when = tr.dep <= t+MIN ? 'parte <b>adesso</b>' : `parte alle <b>${fmt(tr.dep)}</b>${(d.out||!isNext)?' (dopo il rientro)':waitMin>0?` (tra ${waitMin} min, quando gli ordini sono pronti)`:''}`;
+    html += `<div class="trip ${canGo?'next':''}" style="--c:${col}">
+      <div class="trip-head"><b>${esc(d.name)}</b><span class="meta">${when}</span>
+        ${canGo?`<button class="small primary" style="margin-left:auto" data-go="${d.id}">Assegna e parti</button>`:''}</div>
+      <ul class="stops">${tr.stops.map((o,k)=>`<li><span class="grow">${esc(o.label||o.address)} ${platTag(o.platform)}<span class="meta"> · entro ${fmt(o.deadline)}</span></span>
+        <span class="eta ${etaClass(tr.etas[k],o.deadline)}">~${fmt(tr.etas[k])}</span></li>`).join('')}</ul>
+      <div class="ret">Rientro al locale ~<b>${fmt(tr.ret)}</b> · giro di ${Math.round((tr.ret-tr.dep)/MIN)} min</div></div>`;
+  });
+  if(!html) html = '<div class="empty">Nessuna consegna da pianificare.</div>';
+  $('plan').innerHTML = html;
+
+  drawMap(trips, outTrips);
+}
+
+let fitted = '';
+function drawMap(trips, outTrips){
+  if(!map) return;
+  layer.clearLayers();
+  const b = S.settings.base; if(!b) return;
+  const pts = [[b.lat,b.lng]];
+  L.marker([b.lat,b.lng],{icon:pin('#1d1c1a','🏠')}).addTo(layer).bindTooltip('Locale');
+  const drawTrip = (stops, col, dashed) => {
+    const line = [[b.lat,b.lng], ...stops.map(o=>[o.lat,o.lng]), [b.lat,b.lng]];
+    L.polyline(line,{color:col,weight:3,opacity:.8,dashArray:dashed?'6 6':null}).addTo(layer);
+    stops.forEach((o,k)=>{ pts.push([o.lat,o.lng]); L.marker([o.lat,o.lng],{icon:pin(col,k+1)}).addTo(layer).bindTooltip(esc(o.label||o.address)); });
+  };
+  outTrips.forEach(d=>drawTrip(d.trip.orderIds.map(id=>S.orders.find(x=>x.id===id)).filter(o=>o&&o.lat!=null), TRIP_COL[S.drivers.indexOf(d)%TRIP_COL.length], true));
+  trips.forEach(tr=>drawTrip(tr.stops, TRIP_COL[S.drivers.indexOf(tr.driver)%TRIP_COL.length], false));
+  const sig = pts.map(p=>p.join()).sort().join('|');
+  if(sig!==fitted){ fitted = sig; pts.length>1 ? map.fitBounds(pts,{padding:[30,30],maxZoom:15}) : map.setView(pts[0],14); }
+}
+
+/* ===================== Eventi ===================== */
+function fillSettings(){
+  const st=S.settings;
+  $('sBase').value = st.base?.address || '';
+  $('sKey').value = st.apiKey || '';
+  for(const [id,k] of [['sPromise','promiseMin'],['sPrep','prepMin'],['sService','serviceMin'],['sMaxStops','maxStops'],['sMaxExtra','maxExtra'],['sMaxWait','maxWait'],['sMode','mode'],['sSpeed','speedKmh']]){
+    const el=$(id); el.value = st[k];
+    el.onchange = () => { st[k] = el.type==='number' ? Math.max(0, +el.value||0) : el.value; if(k==='mode') S.cache={}; save(); render(); refreshMatrix(); };
+  }
+  resetForm();
+}
+function resetForm(){
+  const d = new Date(); $('oAt').value = d.toTimeString().slice(0,5);
+  $('oPromise').value = S.settings.promiseMin; $('oPrep').value = S.settings.prepMin;
+}
+function timeToday(hhmm){
+  const [h,m] = hhmm.split(':').map(Number); const d = new Date(); d.setHours(h,m,0,0);
+  if(d.getTime() - now() > 12*60*MIN) d.setDate(d.getDate()-1);   // es. ordine delle 23:50 inserito dopo mezzanotte
+  return d.getTime();
+}
+
+$('orderForm').onsubmit = async e => {
+  e.preventDefault();
+  if(!S.settings.base){ $('formMsg').textContent = 'Prima imposta l\'indirizzo del locale.'; return; }
+  const address = $('oAddr').value.trim(); if(!address) return;
+  const at = $('oAt').value ? timeToday($('oAt').value) : now();
+  $('formMsg').textContent = '';
+  addOrder({address, platform:$('oPlat').value, name:$('oName').value.trim(), at, promiseMin:+$('oPromise').value, prepMin: (now()-at)/MIN + Math.max(0, +$('oPrep').value)});   // "pronto tra X min" conta da adesso
+  $('oAddr').value=''; $('oName').value=''; resetForm(); $('oAddr').focus();
+};
+$('bulkBtn').onclick = async () => {
+  if(!S.settings.base){ alert('Prima imposta l\'indirizzo del locale.'); return; }
+  const lines = $('bulk').value.split('\n').map(l=>l.trim()).filter(Boolean);
+  for(const l of lines){
+    const [address, plat, hh] = l.split(';').map(s=>s?.trim());
+    const platform = ['Sito','Just Eat','Uber Eats','Wolt','Telefono'].find(p=>p.toLowerCase()===(plat||'').toLowerCase()) || 'Sito';
+    const deadline = hh && /^\d{1,2}:\d{2}$/.test(hh) ? timeToday(hh) : undefined;
+    await addOrder({address, platform, deadline});
+    if(!gReady) await new Promise(r=>setTimeout(r,1100));   // rispetta i limiti di OpenStreetMap
+  }
+  $('bulk').value='';
+};
+$('sBaseBtn').onclick = async () => {
+  const a = $('sBase').value.trim(); if(!a) return;
+  $('baseInfo').textContent = 'Cerco…';
+  try{ const g = await geocode(a); S.settings.base = {address:a, ...g}; S.cache={}; save(); render(); refreshMatrix(); }
+  catch(e){ $('baseInfo').textContent = '⚠ '+e.message; }
+};
+$('sKeyBtn').onclick = async () => {
+  S.settings.apiKey = $('sKey').value.trim(); save();
+  if(!S.settings.apiKey){ location.reload(); return; }
+  try{ await loadGoogle(S.settings.apiKey); setBadge(); refreshMatrix(); }
+  catch(e){ alert('Impossibile collegare Google Maps: '+e.message); }
+};
+$('dAdd').onclick = () => {
+  const n = $('dName').value.trim(); if(!n) return;
+  S.drivers.push({id:uid(), name:n, onShift:true, out:false, trip:null});
+  $('dName').value=''; save(); render();
+};
+$('dName').onkeydown = e => { if(e.key==='Enter') $('dAdd').click(); };
+$('clearBtn').onclick = () => { S.orders = S.orders.filter(o=>o.status!=='consegnato'); save(); render(); };
+$('demoBtn').onclick = () => {
+  if(S.orders.length && !confirm('Aggiungo ordini di esempio a quelli esistenti?')) return;
+  if(!S.settings.base) S.settings.base = {address:'Piazza del Duomo, Milano', label:'Piazza del Duomo, Milano (esempio)', lat:45.4642, lng:9.1900};
+  if(!S.drivers.length) S.drivers.push({id:uid(),name:'Marco',onShift:true,out:false,trip:null},{id:uid(),name:'Luca',onShift:true,out:false,trip:null});
+  const b=S.settings.base, plats=['Sito','Just Eat','Uber Eats','Wolt','Sito','Just Eat','Wolt','Sito'];
+  const offs=[[.012,.010],[.015,.016],[-.010,.020],[-.014,.015],[.004,-.022],[.008,-.018],[-.020,-.006],[.018,.002]];
+  offs.forEach(([dy,dx],i)=>{
+    const at = now() - (30 - i*4)*MIN;
+    S.orders.push({id:uid(), address:'Cliente esempio '+(i+1), label:'Cliente esempio '+(i+1), platform:plats[i], name:'#'+(1040+i), at,
+      deadline: at+S.settings.promiseMin*MIN, readyAt: at+S.settings.prepMin*MIN, status:'attesa', lat:b.lat+dy, lng:b.lng+dx});
+  });
+  save(); fillSettings(); render(); refreshMatrix();
+};
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-del],[data-ready],[data-go],[data-back],[data-shift],[data-rmd],[data-regeo]'); if(!t) return;
+  const ds = t.dataset;
+  if(ds.del){ S.orders = S.orders.filter(o=>o.id!==ds.del); S.drivers.forEach(d=>{ if(d.trip){ const k=d.trip.orderIds.indexOf(ds.del); if(k>=0){ d.trip.orderIds.splice(k,1); d.trip.etas.splice(k,1);} } }); }
+  if(ds.ready){ const o=S.orders.find(x=>x.id===ds.ready); if(o) o.readyAt=Math.min(o.readyAt, now()); }
+  if(ds.regeo){ e.preventDefault(); const o=S.orders.find(x=>x.id===ds.regeo); if(o){ o.geoError=null; geocode(o.address).then(g=>Object.assign(o,g)).catch(er=>o.geoError=er.message).finally(()=>{save();render();refreshMatrix();}); } }
+  if(ds.go){
+    const d=S.drivers.find(x=>x.id===ds.go), tr=lastTrips.find(x=>x.driver.id===ds.go);
+    if(d && tr){
+      const ev = evalTrip(tr.stops, now());     // ricalcola partendo da adesso
+      tr.stops.forEach(o=>{ o.status='in_consegna'; o.driverId=d.id; });
+      d.out = true; d.trip = {orderIds:tr.stops.map(o=>o.id), etas:ev.etas, dep:Math.max(now(),ev.dep), ret:ev.ret};
+    }
+  }
+  if(ds.back){ const d=S.drivers.find(x=>x.id===ds.back); if(d) deliverTrip(d); return; }
+  if(ds.shift){ const d=S.drivers.find(x=>x.id===ds.shift); if(d) d.onShift=!d.onShift; }
+  if(ds.rmd){ const d=S.drivers.find(x=>x.id===ds.rmd); if(d && (!d.out || confirm('Il fattorino è in giro: rimuoverlo?'))){ if(d.out) deliverTrip(d); S.drivers=S.drivers.filter(x=>x!==d); } }
+  save(); render();
+});
+
+/* ===================== Avvio ===================== */
+initMap(); fillSettings(); setBadge(); render();
+if(S.settings.apiKey) loadGoogle(S.settings.apiKey).then(()=>{ setBadge(); refreshMatrix(); }).catch(()=>{});
+setInterval(()=>{ render(); refreshMatrix(); }, 30000);
+</script>
+</body>
+</html>
