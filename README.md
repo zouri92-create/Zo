@@ -13,7 +13,7 @@ Il testo del libro resta nel browser (IndexedDB); lezioni e progressi sono salva
 
 ---
 
-# Giro Consegne (`consegne/index.html`)
+# Giro Consegne (estensione Chrome, cartella `consegne/`)
 
 Pianificatore delle consegne a domicilio: dato l'elenco degli ordini (Sito, Just Eat, Uber Eats, Wolt, telefono)
 e i fattorini in turno, propone **quale giro dare a ogni fattorino**, in che ordine fare le consegne,
@@ -22,6 +22,13 @@ e i fattorini in turno, propone **quale giro dare a ogni fattorino**, in che ord
 - Parte sempre dall'ordine più urgente e ci abbina gli ordini vicini solo se nessun cliente sfora l'orario promesso (default 60 min).
 - Avvisa in rosso gli ordini che arriveranno in ritardo con i fattorini disponibili.
 - "Assegna e parti" mette il fattorino in giro e toglie i suoi ordini dalla lista; ogni consegna sparisce da sola all'orario di arrivo previsto e il fattorino torna libero da solo all'orario di rientro ("Rientrato" serve solo se torna prima).
-- Con una **chiave API Google Maps** (Maps JavaScript API, Geocoding API, Routes API) usa indirizzi e tempi reali con traffico;
+- "Apri in Google Maps" apre il percorso del giro nel navigatore.
+- Con una **chiave API Google** (Geocoding API + Routes API) usa indirizzi e tempi reali, con circa 3 richieste per ordine;
   senza chiave stima i tempi in linea d'aria con OpenStreetMap.
-- I dati restano nel browser (localStorage). Basta aprire il file in Chrome.
+- I dati restano in Chrome (localStorage dell'estensione).
+
+## Installazione
+1. Scarica e decomprimi la cartella `consegne`.
+2. In Chrome apri `chrome://extensions` e attiva **Modalità sviluppatore** (in alto a destra).
+3. **Carica estensione non pacchettizzata** e scegli la cartella `consegne`.
+4. Clicca l'icona del puzzle in alto, fissa **Giro Consegne** con la puntina e cliccala per aprire il programma.

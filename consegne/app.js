@@ -1,172 +1,3 @@
-<!doctype html>
-<html lang="it">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Giro Consegne</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<style>
-:root{
-  --bg:#f5f4f0; --card:#ffffff; --ink:#1d1c1a; --muted:#6b6862; --line:#e2dfd8;
-  --accent:#d2491d; --ok:#1f8a4c; --warn:#c98a00; --bad:#c62828; --chip:#efece6;
-}
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){
-    --bg:#161513; --card:#201f1c; --ink:#efece6; --muted:#a19d95; --line:#34322e;
-    --accent:#ff7a45; --ok:#4cc17e; --warn:#e8b43a; --bad:#ef5350; --chip:#2b2a26;
-  }
-}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-header{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:0;z-index:1000;flex-wrap:wrap}
-header h1{font-size:18px;margin:0;font-weight:700}
-header .clock{font-variant-numeric:tabular-nums;font-size:18px;font-weight:600;margin-left:auto}
-.badge{font-size:12px;padding:2px 8px;border-radius:99px;background:var(--chip);color:var(--muted)}
-.badge.on{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}
-main{display:grid;grid-template-columns:340px 1fr 360px;gap:16px;padding:16px;align-items:start}
-@media (max-width:1150px){main{grid-template-columns:1fr 1fr}.col-plan{grid-column:1 / -1;order:-1}}
-@media (max-width:720px){main{grid-template-columns:1fr;padding:12px}}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:16px}
-.card h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
-.card h2 .count{margin-left:auto}
-label{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px}
-input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
-textarea{min-height:80px;resize:vertical}
-.row{display:flex;gap:8px}.row>*{flex:1;min-width:0}
-button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--chip);color:var(--ink);padding:8px 12px;border-radius:8px}
-button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
-button.small{padding:4px 8px;font-size:12px}
-button:disabled{opacity:.5;cursor:default}
-.list{display:flex;flex-direction:column;gap:8px}
-.item{border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;gap:8px;align-items:flex-start}
-.item .grow{flex:1;min-width:0}
-.item .addr{font-weight:600;overflow-wrap:anywhere}
-.meta{font-size:12px;color:var(--muted)}
-.plat{font-size:11px;font-weight:700;padding:1px 6px;border-radius:6px;color:#fff;white-space:nowrap}
-.trip{border:1px solid var(--line);border-left:5px solid var(--c,var(--accent));border-radius:10px;padding:10px 12px;margin-bottom:10px}
-.trip.next{box-shadow:0 0 0 2px color-mix(in srgb,var(--c) 35%,transparent)}
-.trip-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.trip-head b{font-size:15px}
-.stops{margin:8px 0 6px;padding:0;list-style:none;counter-reset:s}
-.stops li{counter-increment:s;display:flex;gap:8px;align-items:center;padding:4px 0;border-top:1px dashed var(--line)}
-.stops li::before{content:counter(s);width:20px;height:20px;border-radius:50%;background:var(--c);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;flex:none}
-.eta{margin-left:auto;font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:600}
-.eta.ok{color:var(--ok)}.eta.warn{color:var(--warn)}.eta.bad{color:var(--bad)}
-.ret{font-size:13px;color:var(--muted)}
-.ret b{color:var(--ink)}
-.alert{border-radius:10px;padding:10px 12px;margin-bottom:12px;background:color-mix(in srgb,var(--bad) 14%,transparent);color:var(--bad);font-weight:600}
-.alert.info{background:var(--chip);color:var(--muted);font-weight:400}
-#map{height:340px;border-radius:10px;border:1px solid var(--line)}
-.driver{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:8px 10px}
-.dot{width:10px;height:10px;border-radius:50%;flex:none}
-details summary{cursor:pointer;font-weight:600}
-.muted{color:var(--muted)}
-.empty{color:var(--muted);text-align:center;padding:16px 4px}
-.kpis{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
-.kpi{flex:1;min-width:90px;background:var(--chip);border-radius:10px;padding:8px 10px}
-.kpi b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
-.kpi span{font-size:12px;color:var(--muted)}
-</style>
-</head>
-<body>
-<header>
-  <h1>🛵 Giro Consegne</h1>
-  <span id="gBadge" class="badge">Tempi stimati (senza Google)</span>
-  <span class="clock" id="clock">--:--</span>
-</header>
-
-<main>
-  <!-- Colonna 1: ordini -->
-  <section class="col-orders">
-    <div class="card">
-      <h2>➕ Nuovo ordine</h2>
-      <form id="orderForm" autocomplete="off">
-        <label>Indirizzo di consegna</label>
-        <input id="oAddr" required placeholder="Via Roma 10, Città">
-        <div class="row">
-          <div><label>Piattaforma</label>
-            <select id="oPlat">
-              <option>Sito</option><option>Just Eat</option><option>Uber Eats</option><option>Wolt</option><option>Telefono</option>
-            </select></div>
-          <div><label>Cliente / n° ordine</label><input id="oName" placeholder="opzionale"></div>
-        </div>
-        <div class="row">
-          <div><label>Ricevuto alle</label><input id="oAt" type="time"></div>
-          <div><label>Attesa promessa (min)</label><input id="oPromise" type="number" min="10" step="5"></div>
-          <div><label>Pronto tra (min)</label><input id="oPrep" type="number" min="0" step="5"></div>
-        </div>
-        <div style="margin-top:12px"><button class="primary" style="width:100%">Aggiungi ordine</button></div>
-        <div id="formMsg" class="meta" style="margin-top:6px"></div>
-      </form>
-      <details style="margin-top:12px">
-        <summary>Incolla più ordini</summary>
-        <p class="meta">Una riga per ordine: <code>indirizzo ; piattaforma ; ora promessa (HH:MM)</code>. Piattaforma e ora sono facoltative.</p>
-        <textarea id="bulk" placeholder="Via Dante 4, Milano ; Wolt ; 20:45"></textarea>
-        <button id="bulkBtn" style="margin-top:6px">Importa</button>
-      </details>
-    </div>
-
-    <div class="card">
-      <h2>🧾 Ordini da consegnare <span class="badge count" id="pendCount">0</span></h2>
-      <div class="list" id="orderList"></div>
-    </div>
-  </section>
-
-  <!-- Colonna 2: piano -->
-  <section class="col-plan">
-    <div class="card">
-      <h2>🗺️ Piano consegne <span class="meta" style="margin-left:auto" id="planTime"></span></h2>
-      <div class="kpis" id="kpis"></div>
-      <div id="alerts"></div>
-      <div id="plan"></div>
-    </div>
-    <div class="card"><div id="map"></div></div>
-  </section>
-
-  <!-- Colonna 3: autisti + impostazioni -->
-  <section class="col-side">
-    <div class="card">
-      <h2>👤 Fattorini</h2>
-      <div class="list" id="driverList"></div>
-      <div class="row" style="margin-top:10px">
-        <input id="dName" placeholder="Nome fattorino">
-        <button id="dAdd" style="flex:none">Aggiungi</button>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>⚙️ Impostazioni</h2>
-      <label>Indirizzo del locale (partenza)</label>
-      <div class="row"><input id="sBase" placeholder="Via del locale 1, Città"><button id="sBaseBtn" style="flex:none">Imposta</button></div>
-      <div class="meta" id="baseInfo"></div>
-      <label>Chiave API Google Maps</label>
-      <div class="row"><input id="sKey" type="password" placeholder="AIza..."><button id="sKeyBtn" style="flex:none">Collega</button></div>
-      <div class="meta">Serve per indirizzi precisi e tempi di percorrenza reali (Maps JavaScript API + Geocoding + Routes API). Usa circa 3 richieste a Google per ordine, per restare nella quota gratuita. Senza chiave i tempi sono stimati in linea d'aria.</div>
-      <div class="row">
-        <div><label>Attesa promessa (min)</label><input id="sPromise" type="number" min="10" step="5"></div>
-        <div><label>Preparazione (min)</label><input id="sPrep" type="number" min="0" step="5"></div>
-      </div>
-      <div class="row">
-        <div><label>Sosta per consegna (min)</label><input id="sService" type="number" min="0" step="1"></div>
-        <div><label>Max consegne per giro</label><input id="sMaxStops" type="number" min="1" max="8"></div>
-      </div>
-      <div class="row">
-        <div><label>Ritardo max aggiunto a un ordine per abbinarne un altro (min)</label><input id="sMaxExtra" type="number" min="0" step="1"></div>
-        <div><label>Attesa max del fattorino per un ordine non pronto (min)</label><input id="sMaxWait" type="number" min="0" step="1"></div>
-      </div>
-      <div class="row">
-        <div><label>Mezzo</label><select id="sMode"><option value="TWO_WHEELER">Scooter</option><option value="DRIVE">Auto</option></select></div>
-        <div><label>Velocità media senza Google (km/h)</label><input id="sSpeed" type="number" min="5" step="1"></div>
-      </div>
-      <div class="row" style="margin-top:12px">
-        <button id="demoBtn">Carica esempio</button>
-      </div>
-    </div>
-  </section>
-</main>
-
-<script>
 /* ===================== Stato ===================== */
 const KEY = 'giroConsegne.v1';
 const DEF = {
@@ -190,17 +21,24 @@ const TRIP_COL = ['#d2491d','#1f6fd1','#1f8a4c','#a83fb0','#c98a00','#0f8f8f','#
 
 /* ===================== Google Maps ===================== */
 let gReady = false;
-function loadGoogle(key){
-  return new Promise((res, rej) => {
-    if(!key) return rej(new Error('nessuna chiave'));
-    if(window.google?.maps?.importLibrary){ gReady = true; return res(); }
-    window.__gmReady = () => { gReady = true; res(); };
-    const s = document.createElement('script');
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&loading=async&callback=__gmReady&language=it`;
-    s.async = true; s.onerror = () => rej(new Error('caricamento fallito'));
-    window.gm_authFailure = () => { gReady = false; setBadge(); alert('Google Maps ha rifiutato la chiave API. Controlla che sia valida e che le API siano abilitate.'); };
-    document.head.appendChild(s);
-  });
+async function googleGeocode(address, key){
+  let url = 'https://maps.googleapis.com/maps/api/geocode/json?language=it&address='+encodeURIComponent(address)+'&key='+encodeURIComponent(key);
+  const b = S.settings.base;
+  if(b) url += `&bounds=${b.lat-.15},${b.lng-.2}|${b.lat+.15},${b.lng+.2}`;   // cerca vicino al locale
+  const j = await (await fetch(url)).json();
+  if(j.status==='ZERO_RESULTS') throw new Error('Indirizzo non trovato');
+  if(j.status!=='OK') throw Object.assign(new Error(j.error_message || j.status), {google:true});
+  const g = j.results[0];
+  return {lat:g.geometry.location.lat, lng:g.geometry.location.lng, label:g.formatted_address};
+}
+/* Prova la chiave con una ricerca vera: se Google risponde, la chiave funziona */
+async function checkKey(){
+  gReady = false;
+  if(S.settings.apiKey){
+    try{ await googleGeocode(S.settings.base?.address || 'Berlin', S.settings.apiKey); gReady = true; }
+    catch(e){ setBadge(); throw e; }
+  }
+  setBadge();
 }
 function setBadge(){
   const b = $('gBadge');
@@ -212,14 +50,7 @@ function setBadge(){
 async function geocode(address){
   const m = address.match(/^\s*(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)\s*$/);
   if(m) return {lat:+m[1], lng:+m[2], label:address};
-  if(gReady){
-    const {Geocoder} = await google.maps.importLibrary('geocoding');
-    const opts = {address};   // nessun paese fisso: si cerca vicino al locale
-    if(S.settings.base) opts.bounds = { north:S.settings.base.lat+.15, south:S.settings.base.lat-.15, east:S.settings.base.lng+.2, west:S.settings.base.lng-.2 };
-    const r = await new Geocoder().geocode(opts);
-    const g = r.results[0]; if(!g) throw new Error('Indirizzo non trovato');
-    return {lat:g.geometry.location.lat(), lng:g.geometry.location.lng(), label:g.formatted_address};
-  }
+  if(gReady) return googleGeocode(address, S.settings.apiKey);
   let url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(address);
   if(S.settings.base){ const b=S.settings.base; url += `&viewbox=${b.lng-.2},${b.lat+.15},${b.lng+.2},${b.lat-.15}`; }
   const r = await fetch(url, {headers:{'Accept-Language':'it'}});
@@ -390,16 +221,6 @@ function plan(){
 }
 
 /* ===================== Rendering ===================== */
-let map, layer;
-function initMap(){
-  if(!window.L){ document.getElementById('map').innerHTML='<div class="empty">Mappa non disponibile (nessuna connessione).</div>'; return; }
-  map = L.map('map',{zoomControl:true}).setView([41.9,12.5],5);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
-  layer = L.layerGroup().addTo(map);
-}
-const pin = (color, text) => L.divIcon({className:'', iconSize:[26,26], iconAnchor:[13,13],
-  html:`<div style="width:26px;height:26px;border-radius:50%;background:${color};color:#fff;border:2px solid #fff;box-shadow:0 1px 4px #0006;display:grid;place-items:center;font:700 12px system-ui">${text}</div>`});
-
 function etaClass(eta, deadline){
   const slack = (deadline-eta)/MIN;
   return slack < 0 ? 'bad' : slack < 8 ? 'warn' : 'ok';
@@ -503,7 +324,7 @@ function render(){
         ${canGo?`<button class="small primary" style="margin-left:auto" data-go="${d.id}">Assegna e parti</button>`:''}</div>
       <ul class="stops">${tr.stops.map((o,k)=>`<li><span class="grow">${esc(o.label||o.address)} ${platTag(o.platform)}<span class="meta"> · entro ${fmt(o.deadline)}</span></span>
         <span class="eta ${etaClass(tr.etas[k],o.deadline)}">~${fmt(tr.etas[k])}</span></li>`).join('')}</ul>
-      <div class="ret">Rientro al locale ~<b>${fmt(tr.ret)}</b> · giro di ${Math.round((tr.ret-tr.dep)/MIN)} min</div></div>`;
+      <div class="ret">Rientro al locale ~<b>${fmt(tr.ret)}</b> · giro di ${Math.round((tr.ret-tr.dep)/MIN)} min · <a href="${mapsLink(tr.stops)}" target="_blank" rel="noopener">Apri in Google Maps</a></div></div>`;
   });
   if(!html) html = '<div class="empty">Nessuna consegna da pianificare.</div>';
   $('plan').innerHTML = html;
@@ -511,22 +332,44 @@ function render(){
   drawMap(trips, outTrips);
 }
 
-let fitted = '';
+/* Schema dei giri: posizioni reali in scala, senza sfondo stradale (per strade e navigazione c'è "Apri in Google Maps"). */
 function drawMap(trips, outTrips){
-  if(!map) return;
-  layer.clearLayers();
-  const b = S.settings.base; if(!b) return;
-  const pts = [[b.lat,b.lng]];
-  L.marker([b.lat,b.lng],{icon:pin('#1d1c1a','🏠')}).addTo(layer).bindTooltip('Locale');
-  const drawTrip = (stops, col, dashed) => {
-    const line = [[b.lat,b.lng], ...stops.map(o=>[o.lat,o.lng]), [b.lat,b.lng]];
-    L.polyline(line,{color:col,weight:3,opacity:.8,dashArray:dashed?'6 6':null}).addTo(layer);
-    stops.forEach((o,k)=>{ pts.push([o.lat,o.lng]); L.marker([o.lat,o.lng],{icon:pin(col,k+1)}).addTo(layer).bindTooltip(esc(o.label||o.address)); });
-  };
-  outTrips.forEach(d=>drawTrip(d.trip.orderIds.map(id=>S.orders.find(x=>x.id===id)).filter(o=>o&&o.lat!=null), TRIP_COL[S.drivers.indexOf(d)%TRIP_COL.length], true));
-  trips.forEach(tr=>drawTrip(tr.stops, TRIP_COL[S.drivers.indexOf(tr.driver)%TRIP_COL.length], false));
-  const sig = pts.map(p=>p.join()).sort().join('|');
-  if(sig!==fitted){ fitted = sig; pts.length>1 ? map.fitBounds(pts,{padding:[30,30],maxZoom:15}) : map.setView(pts[0],14); }
+  const el = $('map'), b = S.settings.base;
+  if(!b){ el.innerHTML = '<div class="empty">Imposta l\'indirizzo del locale.</div>'; return; }
+  const groups = [
+    ...outTrips.map(d=>({stops:d.trip.orderIds.map(id=>S.orders.find(x=>x.id===id)).filter(o=>o&&o.lat!=null), col:TRIP_COL[S.drivers.indexOf(d)%TRIP_COL.length], dashed:true})),
+    ...trips.map((tr,i)=>({stops:tr.stops, col:TRIP_COL[S.drivers.indexOf(tr.driver)%TRIP_COL.length], dashed:false, later: trips.slice(0,i).some(x=>x.driver===tr.driver)}))
+  ];
+  const all = [b, ...groups.flatMap(g=>g.stops)];
+  const k = Math.cos(b.lat*Math.PI/180);
+  const xs = all.map(p=>p.lng*k), ys = all.map(p=>-p.lat);
+  const W = 600, H = 340, pad = 28;
+  let minX=Math.min(...xs), maxX=Math.max(...xs), minY=Math.min(...ys), maxY=Math.max(...ys);
+  const span = Math.max(maxX-minX, maxY-minY, 0.01);
+  const sc = Math.min((W-2*pad)/Math.max(maxX-minX, span*.3), (H-2*pad)/Math.max(maxY-minY, span*.3));
+  const cx=(minX+maxX)/2, cy=(minY+maxY)/2;
+  const P = p => [W/2 + (p.lng*k-cx)*sc, H/2 + (-p.lat-cy)*sc];
+  const kmPx = sc / 111.32;   // pixel per km
+  const barKm = [0.5,1,2,5,10].find(v=>v*kmPx>60) || 10;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Schema dei giri">`;
+  for(const g of groups){
+    const pts = [b, ...g.stops, b].map(P).map(p=>p.join(',')).join(' ');
+    svg += `<polyline points="${pts}" fill="none" stroke="${g.col}" stroke-width="3" stroke-opacity="${g.later?.3:.8}" ${g.dashed?'stroke-dasharray="6 6"':''}/>`;
+  }
+  for(const g of groups) g.stops.forEach((o,i)=>{ const [x,y]=P(o);
+    svg += `<g><title>${esc(o.label||o.address)}</title><circle cx="${x}" cy="${y}" r="11" fill="${g.col}" fill-opacity="${g.later?.45:1}" stroke="#fff" stroke-width="2"/><text x="${x}" y="${y+4}" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">${i+1}</text></g>`; });
+  const [bx,by]=P(b);
+  svg += `<g><title>Locale</title><rect x="${bx-12}" y="${by-12}" width="24" height="24" rx="6" fill="var(--ink)"/><text x="${bx}" y="${by+5}" text-anchor="middle" font-size="13">🏠</text></g>`;
+  svg += `<g fill="var(--muted)" font-size="11"><line x1="${pad}" y1="${H-12}" x2="${pad+barKm*kmPx}" y2="${H-12}" stroke="var(--muted)" stroke-width="2"/><text x="${pad}" y="${H-18}">${barKm} km</text></g></svg>`;
+  el.innerHTML = svg;
+}
+/* Link a Google Maps con il percorso del giro (gratis, apre la navigazione) */
+function mapsLink(stops){
+  const b = S.settings.base, c = p => p.lat.toFixed(6)+','+p.lng.toFixed(6);
+  const u = new URL('https://www.google.com/maps/dir/');
+  u.searchParams.set('api','1'); u.searchParams.set('origin', c(b)); u.searchParams.set('destination', c(b));
+  u.searchParams.set('waypoints', stops.map(c).join('|')); u.searchParams.set('travelmode', S.settings.mode==='DRIVE'?'driving':'two-wheeler');
+  return u.toString();
 }
 
 /* ===================== Eventi ===================== */
@@ -579,9 +422,9 @@ $('sBaseBtn').onclick = async () => {
 };
 $('sKeyBtn').onclick = async () => {
   S.settings.apiKey = $('sKey').value.trim(); save();
-  if(!S.settings.apiKey){ location.reload(); return; }
-  try{ await loadGoogle(S.settings.apiKey); setBadge(); refreshMatrix(); }
-  catch(e){ alert('Impossibile collegare Google Maps: '+e.message); }
+  if(!S.settings.apiKey){ gReady=false; setBadge(); return; }
+  try{ await checkKey(); render(); refreshMatrix(); alert('Google Maps collegato!'); }
+  catch(e){ alert('Google ha rifiutato la chiave: '+e.message+'\n\nControlla di aver copiato tutta la chiave e di aver abilitato Geocoding API e Routes API.'); }
 };
 $('dAdd').onclick = () => {
   const n = $('dName').value.trim(); if(!n) return;
@@ -624,9 +467,6 @@ document.addEventListener('click', e => {
 });
 
 /* ===================== Avvio ===================== */
-initMap(); fillSettings(); setBadge(); render();
-if(S.settings.apiKey) loadGoogle(S.settings.apiKey).then(()=>{ setBadge(); refreshMatrix(); }).catch(()=>{});
+fillSettings(); setBadge(); render();
+if(S.settings.apiKey) checkKey().then(()=>{ render(); refreshMatrix(); }).catch(e=>console.warn('Chiave Google', e));
 setInterval(()=>{ render(); refreshMatrix(); }, 15000);
-</script>
-</body>
-</html>

@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Giro Consegne</title>
+<style>
+:root{
+  --bg:#f5f4f0; --card:#ffffff; --ink:#1d1c1a; --muted:#6b6862; --line:#e2dfd8;
+  --accent:#d2491d; --ok:#1f8a4c; --warn:#c98a00; --bad:#c62828; --chip:#efece6;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#161513; --card:#201f1c; --ink:#efece6; --muted:#a19d95; --line:#34322e;
+    --accent:#ff7a45; --ok:#4cc17e; --warn:#e8b43a; --bad:#ef5350; --chip:#2b2a26;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:0;z-index:1000;flex-wrap:wrap}
+header h1{font-size:18px;margin:0;font-weight:700}
+header .clock{font-variant-numeric:tabular-nums;font-size:18px;font-weight:600;margin-left:auto}
+.badge{font-size:12px;padding:2px 8px;border-radius:99px;background:var(--chip);color:var(--muted)}
+.badge.on{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}
+main{display:grid;grid-template-columns:340px 1fr 360px;gap:16px;padding:16px;align-items:start}
+@media (max-width:1150px){main{grid-template-columns:1fr 1fr}.col-plan{grid-column:1 / -1;order:-1}}
+@media (max-width:720px){main{grid-template-columns:1fr;padding:12px}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:16px}
+.card h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+.card h2 .count{margin-left:auto}
+label{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px}
+input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
+textarea{min-height:80px;resize:vertical}
+.row{display:flex;gap:8px}.row>*{flex:1;min-width:0}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--chip);color:var(--ink);padding:8px 12px;border-radius:8px}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+button.small{padding:4px 8px;font-size:12px}
+button:disabled{opacity:.5;cursor:default}
+.list{display:flex;flex-direction:column;gap:8px}
+.item{border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;gap:8px;align-items:flex-start}
+.item .grow{flex:1;min-width:0}
+.item .addr{font-weight:600;overflow-wrap:anywhere}
+.meta{font-size:12px;color:var(--muted)}
+.plat{font-size:11px;font-weight:700;padding:1px 6px;border-radius:6px;color:#fff;white-space:nowrap}
+.trip{border:1px solid var(--line);border-left:5px solid var(--c,var(--accent));border-radius:10px;padding:10px 12px;margin-bottom:10px}
+.trip.next{box-shadow:0 0 0 2px color-mix(in srgb,var(--c) 35%,transparent)}
+.trip-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.trip-head b{font-size:15px}
+.stops{margin:8px 0 6px;padding:0;list-style:none;counter-reset:s}
+.stops li{counter-increment:s;display:flex;gap:8px;align-items:center;padding:4px 0;border-top:1px dashed var(--line)}
+.stops li::before{content:counter(s);width:20px;height:20px;border-radius:50%;background:var(--c);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;flex:none}
+.eta{margin-left:auto;font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:600}
+.eta.ok{color:var(--ok)}.eta.warn{color:var(--warn)}.eta.bad{color:var(--bad)}
+.ret{font-size:13px;color:var(--muted)}
+.ret b{color:var(--ink)}
+.alert{border-radius:10px;padding:10px 12px;margin-bottom:12px;background:color-mix(in srgb,var(--bad) 14%,transparent);color:var(--bad);font-weight:600}
+.alert.info{background:var(--chip);color:var(--muted);font-weight:400}
+#map{border-radius:10px;border:1px solid var(--line);background:var(--bg);min-height:120px}
+#map svg{display:block}
+a{color:var(--accent)}
+.driver{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.dot{width:10px;height:10px;border-radius:50%;flex:none}
+details summary{cursor:pointer;font-weight:600}
+.muted{color:var(--muted)}
+.empty{color:var(--muted);text-align:center;padding:16px 4px}
+.kpis{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.kpi{flex:1;min-width:90px;background:var(--chip);border-radius:10px;padding:8px 10px}
+.kpi b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
+.kpi span{font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <h1>🛵 Giro Consegne</h1>
+  <span id="gBadge" class="badge">Tempi stimati (senza Google)</span>
+  <span class="clock" id="clock">--:--</span>
+</header>
+
+<main>
+  <!-- Colonna 1: ordini -->
+  <section class="col-orders">
+    <div class="card">
+      <h2>➕ Nuovo ordine</h2>
+      <form id="orderForm" autocomplete="off">
+        <label>Indirizzo di consegna</label>
+        <input id="oAddr" required placeholder="Via Roma 10, Città">
+        <div class="row">
+          <div><label>Piattaforma</label>
+            <select id="oPlat">
+              <option>Sito</option><option>Just Eat</option><option>Uber Eats</option><option>Wolt</option><option>Telefono</option>
+            </select></div>
+          <div><label>Cliente / n° ordine</label><input id="oName" placeholder="opzionale"></div>
+        </div>
+        <div class="row">
+          <div><label>Ricevuto alle</label><input id="oAt" type="time"></div>
+          <div><label>Attesa promessa (min)</label><input id="oPromise" type="number" min="10" step="5"></div>
+          <div><label>Pronto tra (min)</label><input id="oPrep" type="number" min="0" step="5"></div>
+        </div>
+        <div style="margin-top:12px"><button class="primary" style="width:100%">Aggiungi ordine</button></div>
+        <div id="formMsg" class="meta" style="margin-top:6px"></div>
+      </form>
+      <details style="margin-top:12px">
+        <summary>Incolla più ordini</summary>
+        <p class="meta">Una riga per ordine: <code>indirizzo ; piattaforma ; ora promessa (HH:MM)</code>. Piattaforma e ora sono facoltative.</p>
+        <textarea id="bulk" placeholder="Via Dante 4, Milano ; Wolt ; 20:45"></textarea>
+        <button id="bulkBtn" style="margin-top:6px">Importa</button>
+      </details>
+    </div>
+
+    <div class="card">
+      <h2>🧾 Ordini da consegnare <span class="badge count" id="pendCount">0</span></h2>
+      <div class="list" id="orderList"></div>
+    </div>
+  </section>
+
+  <!-- Colonna 2: piano -->
+  <section class="col-plan">
+    <div class="card">
+      <h2>🗺️ Piano consegne <span class="meta" style="margin-left:auto" id="planTime"></span></h2>
+      <div class="kpis" id="kpis"></div>
+      <div id="alerts"></div>
+      <div id="plan"></div>
+    </div>
+    <div class="card"><h2>📍 Schema dei giri</h2><div id="map"></div></div>
+  </section>
+
+  <!-- Colonna 3: autisti + impostazioni -->
+  <section class="col-side">
+    <div class="card">
+      <h2>👤 Fattorini</h2>
+      <div class="list" id="driverList"></div>
+      <div class="row" style="margin-top:10px">
+        <input id="dName" placeholder="Nome fattorino">
+        <button id="dAdd" style="flex:none">Aggiungi</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>⚙️ Impostazioni</h2>
+      <label>Indirizzo del locale (partenza)</label>
+      <div class="row"><input id="sBase" placeholder="Via del locale 1, Città"><button id="sBaseBtn" style="flex:none">Imposta</button></div>
+      <div class="meta" id="baseInfo"></div>
+      <label>Chiave API Google Maps</label>
+      <div class="row"><input id="sKey" type="password" placeholder="AIza..."><button id="sKeyBtn" style="flex:none">Collega</button></div>
+      <div class="meta">Serve per indirizzi precisi e tempi di percorrenza reali (Geocoding API + Routes API). Usa circa 3 richieste a Google per ordine, per restare nella quota gratuita. Senza chiave i tempi sono stimati in linea d'aria.</div>
+      <div class="row">
+        <div><label>Attesa promessa (min)</label><input id="sPromise" type="number" min="10" step="5"></div>
+        <div><label>Preparazione (min)</label><input id="sPrep" type="number" min="0" step="5"></div>
+      </div>
+      <div class="row">
+        <div><label>Sosta per consegna (min)</label><input id="sService" type="number" min="0" step="1"></div>
+        <div><label>Max consegne per giro</label><input id="sMaxStops" type="number" min="1" max="8"></div>
+      </div>
+      <div class="row">
+        <div><label>Ritardo max aggiunto a un ordine per abbinarne un altro (min)</label><input id="sMaxExtra" type="number" min="0" step="1"></div>
+        <div><label>Attesa max del fattorino per un ordine non pronto (min)</label><input id="sMaxWait" type="number" min="0" step="1"></div>
+      </div>
+      <div class="row">
+        <div><label>Mezzo</label><select id="sMode"><option value="TWO_WHEELER">Scooter</option><option value="DRIVE">Auto</option></select></div>
+        <div><label>Velocità media senza Google (km/h)</label><input id="sSpeed" type="number" min="5" step="1"></div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button id="demoBtn">Carica esempio</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
