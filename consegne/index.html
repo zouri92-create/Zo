@@ -196,7 +196,7 @@ function loadGoogle(key){
     if(window.google?.maps?.importLibrary){ gReady = true; return res(); }
     window.__gmReady = () => { gReady = true; res(); };
     const s = document.createElement('script');
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&loading=async&callback=__gmReady&language=it&region=IT`;
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&loading=async&callback=__gmReady&language=it`;
     s.async = true; s.onerror = () => rej(new Error('caricamento fallito'));
     window.gm_authFailure = () => { gReady = false; setBadge(); alert('Google Maps ha rifiutato la chiave API. Controlla che sia valida e che le API siano abilitate.'); };
     document.head.appendChild(s);
@@ -214,13 +214,13 @@ async function geocode(address){
   if(m) return {lat:+m[1], lng:+m[2], label:address};
   if(gReady){
     const {Geocoder} = await google.maps.importLibrary('geocoding');
-    const opts = {address, region:'it'};
+    const opts = {address};   // nessun paese fisso: si cerca vicino al locale
     if(S.settings.base) opts.bounds = { north:S.settings.base.lat+.15, south:S.settings.base.lat-.15, east:S.settings.base.lng+.2, west:S.settings.base.lng-.2 };
     const r = await new Geocoder().geocode(opts);
     const g = r.results[0]; if(!g) throw new Error('Indirizzo non trovato');
     return {lat:g.geometry.location.lat(), lng:g.geometry.location.lng(), label:g.formatted_address};
   }
-  let url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=it&q=' + encodeURIComponent(address);
+  let url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(address);
   if(S.settings.base){ const b=S.settings.base; url += `&viewbox=${b.lng-.2},${b.lat+.15},${b.lng+.2},${b.lat-.15}`; }
   const r = await fetch(url, {headers:{'Accept-Language':'it'}});
   const j = await r.json();
