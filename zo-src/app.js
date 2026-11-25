@@ -5,6 +5,44 @@ const LIB_BY_TITLE = Object.fromEntries(LIB.map((x) => [x.t, x]));
 const BASE = [...RAW.map(([cat, title, tag]) => ({ cat, title, tag })), ...LIB.filter((x) => x.c).map((x) => ({ cat: x.c, title: x.t, tag: x.tg }))];
 const MODELS = BASE.map((b, i) => ({ ...LIB_BY_TITLE[b.title], n: i + 1, ...b, slug: slugify(b.title) }));
 const BY = Object.fromEntries(MODELS.map((m) => [m.slug, m]));
+const BY_T = Object.fromEntries(MODELS.map((m) => [m.title, m]));
+const pick = (titles) => titles.map((t) => BY_T[t]).filter(Boolean);
+
+/* Percorso essenziale: i modelli più utili nella vita di tutti i giorni, in un ordine pensato. */
+const ESSENTIAL = pick([
+  "La mappa non è il territorio", "Il cerchio di competenza", "Il pensiero di secondo ordine", "L'inversione",
+  "Il pensiero probabilistico", "Compromessi", "Incentivi", "Il rasoio di Hanlon", "Il rasoio di Occam",
+  "Euristica della conferma", "La fallacia dei costi sommersi", "Avversione alla perdita", "Lo sconto iperbolico",
+  "Crescita composta", "Margine di sicurezza", "Principio di Pareto", "Rendimenti decrescenti", "Correlazione e causalità",
+  "Il pensiero per principi primi", "Circuiti di retroazione", "Colli di bottiglia", "Leva", "Inerzia",
+  "Il ciclo dell'abitudine", "Sistemi e obiettivi", "Decisioni rapide e correggibili", "Massimi locali e globali",
+  "Regressione verso la media", "Teoria dei giochi", "Inquadratura",
+]);
+const ESSENTIAL_SET = new Set(ESSENTIAL.map((m) => m.slug));
+
+/* «Ho una decisione da prendere»: tipi di problema, parole che li fanno riconoscere, modelli adatti. */
+const DECISIONS = [
+  { id: "lavoro", label: "Lavoro o carriera", words: ["lavoro", "carriera", "capo", "stipendio", "colloquio", "licenz", "promozion", "azienda", "ufficio", "dimett"],
+    models: ["Ridurre il rimpianto futuro", "Il cerchio di competenza", "Compromessi", "Massimi locali e globali", "Decisioni rapide e correggibili"] },
+  { id: "soldi", label: "Soldi, spese o investimenti", words: ["soldi", "spes", "comprar", "acquist", "investi", "risparm", "mutuo", "prestito", "debito", "azion", "prezzo", "euro"],
+    models: ["Crescita composta", "Margine di sicurezza", "Avversione alla perdita", "La fallacia dei costi sommersi", "Diversificazione"] },
+  { id: "persone", label: "Un conflitto con una persona", words: ["litig", "conflitt", "arrabbi", "partner", "marito", "moglie", "amic", "collega", "suocer", "discuss", "offes"],
+    models: ["Il rasoio di Hanlon", "Comunicazione nonviolenta", "Relatività", "Reciprocità", "Il modello SCARF"] },
+  { id: "progetto", label: "Un progetto che non va avanti", words: ["progetto", "bloccat", "fermo", "ritardo", "non riesco", "lento", "scadenz"],
+    models: ["Colli di bottiglia", "Energia di attivazione", "Dividere e affrontare", "La fallacia dei costi sommersi", "Principio di Pareto"] },
+  { id: "tempo", label: "Troppe cose da fare", words: ["troppe cose", "tempo", "stress", "impegni", "agenda", "stanco", "priorit", "urgent"],
+    models: ["La matrice di Eisenhower", "Principio di Pareto", "Le due liste di Buffett", "Migliorare togliendo", "La legge di Parkinson"] },
+  { id: "abitudine", label: "Cambiare un'abitudine", words: ["abitudin", "smettere", "fumo", "dieta", "palestra", "sport", "telefono", "social", "dormire", "sonno", "pigr"],
+    models: ["Il ciclo dell'abitudine", "Attrito e viscosità", "Sistemi e obiettivi", "Lo sconto iperbolico", "Il patto di Ulisse"] },
+  { id: "notizia", label: "Valutare una notizia o un'idea", words: ["notizia", "articolo", "video", "dicono", "studio", "fonte", "vero", "falso", "credere"],
+    models: ["Euristica della conferma", "Correlazione e causalità", "Il test CRAAP per le fonti", "Campionamento", "Falsificabilità"] },
+  { id: "scelta", label: "Scegliere tra più opzioni", words: ["scegliere", "scelta", "opzion", "alternativ", "oppure", "indecis", "decidere"],
+    models: ["L'inversione", "Il pensiero di secondo ordine", "Il processo decisionale WRAP", "Satisficing: una scelta abbastanza buona", "Il pensiero probabilistico"] },
+  { id: "convincere", label: "Convincere qualcuno", words: ["convincere", "presentaz", "vendere", "propost", "cliente", "persuad", "spiegare"],
+    models: ["Pubblico", "La retorica di Aristotele", "Inquadratura", "Il cerchio d'oro", "Caratteristiche e benefici"] },
+  { id: "ripete", label: "Un problema che si ripete", words: ["sempre", "di nuovo", "ogni volta", "ripete", "ancora", "ricorrent", "errore"],
+    models: ["I cinque perché", "Circuiti di retroazione", "Il diagramma a lisca di pesce", "Apprendimento a doppio ciclo", "Il modello del formaggio svizzero"] },
+].map((d) => ({ ...d, models: pick(d.models) }));
 
 /* ---------- helpers ---------- */
 const $ = (s, el = document) => el.querySelector(s);
@@ -27,14 +65,22 @@ const BOOK = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke
 
 /* ---------- storage: everything stays in this browser, works without internet ---------- */
 const KEY = "zo-offline-v1";
-let S = { order: "lista", seed: 0, current: null, startedAt: {}, done: {}, quiz: {}, ex: {}, journal: [], nome: "" };
+let S = { order: "essenziale", seed: 0, current: null, startedAt: {}, done: {}, quiz: {}, ex: {}, rev: {}, journal: [], nome: "" };
 function load() {
-  try { const st = JSON.parse(localStorage.getItem(KEY) || "null"); if (st && typeof st === "object") S = { ...S, ...st }; } catch {}
+  let st = null;
+  try { st = JSON.parse(localStorage.getItem(KEY) || "null"); } catch {}
+  if (st && typeof st === "object") {
+    /* Dati di una versione precedente (senza ripasso): passa al percorso essenziale tenendo il modello in corso. */
+    const old = !("rev" in st);
+    S = { ...S, ...st }; normalize();
+    if (old) { const cur = currentModel(); if (S.order === "lista") { S.order = "essenziale"; if (cur) S.current = cur.slug; } save(); }
+  }
   normalize();
 }
 function normalize() {
   S.journal = Array.isArray(S.journal) ? S.journal : [];
-  for (const k of ["startedAt", "done", "quiz", "ex"]) if (!S[k] || typeof S[k] !== "object") S[k] = {};
+  for (const k of ["startedAt", "done", "quiz", "ex", "rev"]) if (!S[k] || typeof S[k] !== "object") S[k] = {};
+  for (const slug of Object.keys(S.done)) if (BY[slug] && !S.rev[slug]) S.rev[slug] = { box: 0, due: addDays(today(), 1), n: 0 };
 }
 let storageOk = true;
 function save() {
@@ -51,6 +97,7 @@ function planOrder() {
     return out;
   }
   if (S.order === "casuale") return shuffled(list, S.seed || 1);
+  if (S.order === "essenziale") return [...ESSENTIAL, ...list.filter((m) => !ESSENTIAL_SET.has(m.slug))];
   return list;
 }
 function currentModel() {
@@ -59,6 +106,22 @@ function currentModel() {
 }
 const doneCount = () => Object.keys(S.done).filter((k) => BY[k]).length;
 const exDone = (slug) => (S.ex[slug] || []).filter(Boolean).length;
+
+/* ---------- ripasso automatico a intervalli crescenti ---------- */
+const INTERVALS = [1, 3, 7, 14, 30, 60]; // giorni prima del ripasso successivo, per livello
+function addDays(d, n) { const x = new Date(d + "T12:00:00"); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); }
+function schedule(slug) { if (BY[slug] && !S.rev[slug]) { S.rev[slug] = { box: 0, due: addDays(today(), 1), n: 0 }; save(); } }
+const DAILY_MAX = 10;
+function dueList() {
+  return Object.entries(S.rev).filter(([slug, r]) => BY[slug] && r.due <= today())
+    .sort((a, b) => a[1].due.localeCompare(b[1].due)).slice(0, DAILY_MAX).map(([slug]) => slug);
+}
+function nextDue() { const d = Object.entries(S.rev).filter(([s]) => BY[s]).map(([, r]) => r.due).sort(); return d[0] || null; }
+function grade(slug, ok) {
+  const r = S.rev[slug]; if (!r) return;
+  r.box = ok ? Math.min(r.box + 1, INTERVALS.length - 1) : 0;
+  r.due = addDays(today(), INTERVALS[r.box]); r.n = (r.n || 0) + 1; save();
+}
 
 /* ---------- views ---------- */
 let view = { name: "piano", slug: null, mode: "rapida" };
@@ -73,6 +136,7 @@ function route() {
   if (h.startsWith("m-") && BY[h.slice(2)]) { view = { ...view, name: "model", slug: h.slice(2) }; setTab(currentModel()?.slug === view.slug ? "settimana" : "biblioteca"); return renderModel(BY[view.slug]); }
   if (h === "ripasso") { view.name = h; setTab("piano"); return renderReview(); }
   if (h === "diario") { view.name = h; setTab("piano"); return renderJournal(); }
+  if (h === "decisione") { view.name = h; setTab("piano"); return renderDecision(); }
   const name = ["piano", "settimana", "biblioteca", "impostazioni"].includes(h) ? h : "piano";
   view = { ...view, name, slug: null }; setTab(name);
   if (name === "piano") return renderPlan();
@@ -90,10 +154,11 @@ function renderPlan() {
   const order = planOrder(); const next = order.filter((x) => !S.done[x.slug] && x !== m).slice(0, 4);
   const hello = S.nome ? `Ciao ${esc(S.nome)}.` : "Un modello mentale a settimana.";
   const exI = (day - 1) % 3; const exChecked = m && (S.ex[m.slug] || [])[exI];
+  const due = dueList(); const nd = nextDue();
   app.innerHTML = `<div class="stack">
     <p class="muted">${hello} ${done ? `Hai completato ${done} modelli su ${MODELS.length}.` : `La biblioteca contiene ${MODELS.length} modelli in ${Object.keys(CATS).length} aree.`}</p>
     ${m ? `<div class="hero">
-      <span class="eyebrow">Settimana ${done + 1} · ${esc(SHORT[m.cat])}</span>
+      <span class="eyebrow">Settimana ${done + 1} · ${esc(SHORT[m.cat])}${ESSENTIAL_SET.has(m.slug) && S.order === "essenziale" ? ` · essenziale ${ESSENTIAL.indexOf(m) + 1} di ${ESSENTIAL.length}` : ""}</span>
       <h1>${esc(m.title)}</h1>
       <p>${esc(m.tag)}</p>
       <div class="days" aria-label="Giorno ${day} di 7">${[1,2,3,4,5,6,7].map((i) => `<i class="${i <= day ? "on" : ""}"></i>`).join("")}</div>
@@ -110,7 +175,17 @@ function renderPlan() {
     </div>
   </section>` : ""}
   <section class="block" ${m ? "" : 'style="margin-top:18px"'}>
-    <div class="links-row"><a class="btn" href="#ripasso">Ripasso con quiz</a><a class="btn" href="#diario">Il mio diario · ${S.journal.length}</a></div>
+    <div class="today">
+      <article><span class="eyebrow">Ripasso di oggi</span>
+        <p>${due.length ? `${due.length} ${due.length === 1 ? "modello da ripassare" : "modelli da ripassare"}: ti faccio una domanda su ciascuno.`
+          : nd ? `Niente da ripassare oggi. Il prossimo ripasso è il ${esc(fmtDate(nd))}.`
+          : "Quando completi un modello o fai il suo quiz, torna qui per il ripasso: dopo 1 giorno, poi 3, 7, 14, 30 e 60."}</p>
+        <div class="row"><a class="btn${due.length ? " primary" : ""}" href="#ripasso">${due.length ? "Inizia il ripasso" : "Allenamento libero"}</a></div></article>
+      <article><span class="eyebrow">Ho una decisione da prendere</span>
+        <p>Scegli il tipo di problema: ZO ti suggerisce i modelli adatti e le domande da farti.</p>
+        <div class="row"><a class="btn" href="#decisione">Trova i modelli</a></div></article>
+    </div>
+    <a class="btn" href="#diario" style="justify-content:center">Il mio diario · ${S.journal.length}</a>
   </section>
   <section class="block">
     <div class="row" style="justify-content:space-between"><h2>Il tuo progresso</h2><span class="muted" style="font-variant-numeric:tabular-nums">${pct}%</span></div>
@@ -129,6 +204,7 @@ function itemHTML(m, eyebrow) {
   const q = S.quiz[m.slug]; const cur = currentModel()?.slug === m.slug; const e = exDone(m.slug);
   const pills = [
     S.done[m.slug] ? `<span class="pill ok">Completato</span>` : "",
+    ESSENTIAL_SET.has(m.slug) ? `<span class="pill">Essenziale</span>` : "",
     cur ? `<span class="pill orange">Questa settimana</span>` : "",
     e ? `<span class="pill">Esercizi ${e}/3</span>` : "",
     q ? `<span class="pill">Quiz ${q.score}/${q.total}</span>` : "",
@@ -154,14 +230,14 @@ function renderLibrary() {
       ${Object.keys(CATS).map((c) => `<button data-cat="${c}" aria-pressed="${filter.cat === c}">${esc(SHORT[c])} · ${MODELS.filter((m) => m.cat === c).length}</button>`).join("")}
     </div>
     <div class="chips" role="group" aria-label="Filtra per stato">
-      ${[["", "Tutti"], ["da", "Da studiare"], ["fatti", "Completati"]].map(([v, l]) => `<button data-st="${v}" aria-pressed="${filter.stato === v}">${l}</button>`).join("")}
+      ${[["", "Tutti"], ["ess", `Essenziali · ${ESSENTIAL.length}`], ["da", "Da studiare"], ["fatti", "Completati"]].map(([v, l]) => `<button data-st="${v}" aria-pressed="${filter.stato === v}">${l}</button>`).join("")}
     </div>
     <div class="list" id="results"></div>
   </div>`;
   const draw = () => {
     const q = slugify(filter.q);
     const list = MODELS.filter((m) => (!filter.cat || m.cat === filter.cat)
-      && (!filter.stato || (filter.stato === "fatti") === !!S.done[m.slug])
+      && (!filter.stato || (filter.stato === "ess" ? ESSENTIAL_SET.has(m.slug) : (filter.stato === "fatti") === !!S.done[m.slug]))
       && (!q || slugify([m.title, m.tag, m.sp].join(" ")).includes(q)));
     $("#results").innerHTML = list.length ? list.map((m) => itemHTML(m)).join("") : `<p class="muted" style="padding:18px 4px">Nessun modello corrisponde alla ricerca.</p>`;
   };
@@ -255,7 +331,10 @@ function renderModel(m) {
     const a = S.ex[m.slug] || [false, false, false]; a[+c.dataset.ex] = c.checked; S.ex[m.slug] = a; save();
     c.closest("label").classList.toggle("done", c.checked); if (c.checked) toast("Esercizio fatto");
   }));
-  bindQuiz(qItems, (score, total) => { S.quiz[m.slug] = { score, total, data: today() }; save(); $("#quizScore").textContent = `Risultato: ${score} su ${total}.`; });
+  bindQuiz(qItems, (score, total) => {
+    S.quiz[m.slug] = { score, total, data: today() }; const fresh = !S.rev[m.slug]; schedule(m.slug); save();
+    $("#quizScore").textContent = `Risultato: ${score} su ${total}.${fresh ? " Questo modello entra nel ripasso: te lo riproporrò domani." : ""}`;
+  });
   const drawEntries = () => {
     const list = S.journal.filter((e) => e.slug === m.slug).slice().reverse();
     $("#entries").innerHTML = list.length ? list.map(entryHTML).join("") : `<p class="small muted">Ancora nessuna nota per questo modello.</p>`;
@@ -282,11 +361,12 @@ function renderModel(m) {
 function entryHTML(e) {
   const m = BY[e.slug];
   return `<div class="entry">
-    <div class="row" style="justify-content:space-between"><span class="eyebrow" style="color:var(--muted)">${esc(fmtDate(e.data))}${view.name === "diario" && m ? ` · <a href="#m-${m.slug}">${esc(m.title)}</a>` : ""}${e.tipo === "scheda" ? " · Applicazione" : ""}</span>
+    <div class="row" style="justify-content:space-between"><span class="eyebrow" style="color:var(--muted)">${esc(fmtDate(e.data))}${view.name === "diario" && m ? ` · <a href="#m-${m.slug}">${esc(m.title)}</a>` : ""}${e.tipo === "scheda" ? " · Applicazione" : ""}${e.tipo === "decisione" ? " · Decisione" : ""}</span>
       <button class="ghost small" data-del="${esc(e.id)}" aria-label="Elimina questa nota">Elimina</button></div>
     <p>${esc(e.testo)}</p>
     ${(e.risposte || []).map(([d, r]) => `<div class="fb"><strong>${esc(d)}</strong><br>${esc(r)}</div>`).join("")}
     ${e.azione ? `<div class="fb"><strong>Cosa farò</strong><br>${esc(e.azione)}</div>` : ""}
+    ${(e.modelli || []).filter((s) => BY[s]).length ? `<div class="links">${e.modelli.filter((s) => BY[s]).map((s) => `<a class="btn small" href="#m-${s}">${esc(BY[s].title)}</a>`).join("")}</div>` : ""}
   </div>`;
 }
 function bindEntryDelete(redraw) {
@@ -296,20 +376,106 @@ function bindEntryDelete(redraw) {
   }));
 }
 
-/* Ripasso: domande dai modelli completati (o da tutta la biblioteca all'inizio) */
+/* Ripasso: prima quelli in scadenza oggi, uno alla volta; altrimenti allenamento libero. */
 function renderReview() {
   setTop(backBtn()); bindBack();
-  const pool = MODELS.filter((m) => S.done[m.slug]);
-  const source = pool.length >= 3 ? pool : MODELS;
+  const due = dueList();
+  if (due.length) return reviewStep(due, 0, 0);
+  const pool = MODELS.filter((m) => S.done[m.slug] || S.rev[m.slug]);
+  const source = pool.length >= 3 ? pool : ESSENTIAL;
   const picks = shuffled(source.flatMap((m) => m.qz.map((q, i) => ({ m, q, i }))), Date.now() % 100000).slice(0, 5);
+  const nd = nextDue();
   app.innerHTML = `<div class="stack">
-    <span class="eyebrow">Ripasso</span><h1>Cinque domande</h1>
-    <p class="muted">${pool.length >= 3 ? `Prese dai ${pool.length} modelli che hai completato.` : "Prese da tutta la biblioteca. Quando avrai completato almeno 3 modelli, il ripasso userà solo quelli."}</p>
+    <span class="eyebrow">Allenamento libero</span><h1>Cinque domande</h1>
+    <p class="muted">${nd ? `Il ripasso di oggi è finito. Il prossimo è il ${esc(fmtDate(nd))}. Intanto puoi allenarti con domande a caso.` : "Non hai ancora modelli nel ripasso. Queste domande vengono dai modelli essenziali."}
+      ${pool.length >= 3 ? ` Prese dai ${pool.length} modelli che hai studiato.` : ""}</p>
   </div>
   <section class="block" style="margin-top:14px">${quizHTML(picks, "r:")}<p class="small muted" id="revScore"></p>
     <div><button class="primary" id="again">Altre cinque domande</button></div></section>`;
   bindQuiz(picks, (score, total) => { $("#revScore").textContent = `Risultato: ${score} su ${total}.`; });
   $("#again").addEventListener("click", renderReview);
+}
+function reviewStep(queue, idx, score) {
+  window.scrollTo(0, 0);
+  if (idx >= queue.length) {
+    const nd = nextDue();
+    app.innerHTML = `<div class="stack"><span class="eyebrow">Ripasso di oggi</span><h1>Fatto: ${score} su ${queue.length}</h1>
+      <p class="muted">I modelli che hai ricordato torneranno tra più giorni; quelli sbagliati domani.${nd ? ` Prossimo ripasso: ${esc(fmtDate(nd))}.` : ""}</p>
+      <div class="row"><a class="btn primary" href="#piano">Torna al piano</a><button id="free">Allenamento libero</button></div></div>`;
+    $("#free").addEventListener("click", renderReview);
+    return;
+  }
+  const m = BY[queue[idx]]; const r = S.rev[m.slug]; const qi = (r.n || 0) % m.qz.length;
+  const item = [{ m, q: m.qz[qi], i: qi }];
+  app.innerHTML = `<div class="stack">
+    <span class="eyebrow">Ripasso di oggi · ${idx + 1} di ${queue.length}</span>
+    <div class="bar"><i style="width:${Math.round(idx / queue.length * 100)}%"></i></div>
+    <h1>${esc(m.title)}</h1>
+    <div class="sheet" id="recall">
+      <p><strong>Prima prova a ricordare.</strong> Cosa dice questo modello, e dove l'hai visto in azione? Pensaci qualche secondo.</p>
+      <div><button id="show">Mostra l'idea</button></div>
+    </div>
+  </div>
+  <section class="block" style="margin-top:14px">${quizHTML(item, "")}<div class="row" id="nextRow" hidden><button class="primary" id="next">${idx + 1 < queue.length ? "Avanti" : "Fine"}</button><a class="btn" href="#m-${m.slug}">Rileggi la scheda</a></div></section>`;
+  $("#show").addEventListener("click", () => { $("#recall").innerHTML = `<span class="eyebrow">L'idea</span><p style="font-size:1.1rem">${esc(m.tag)}</p>`; });
+  bindQuiz(item, (ok) => {
+    grade(m.slug, ok === 1);
+    $("#nextRow").hidden = false;
+    $("#next").addEventListener("click", () => reviewStep(queue, idx + 1, score + ok));
+  });
+}
+
+/* Ho una decisione da prendere */
+let decision = { text: "", id: "" };
+function guessDecision(text) {
+  const t = " " + text.toLowerCase() + " "; let best = null, top = 0;
+  for (const d of DECISIONS) { const sc = d.words.filter((w) => t.includes(w)).length; if (sc > top) { top = sc; best = d; } }
+  return best;
+}
+function renderDecision() {
+  setTop(backBtn()); bindBack();
+  const d = DECISIONS.find((x) => x.id === decision.id);
+  app.innerHTML = `<div class="stack">
+    <span class="eyebrow">Ho una decisione da prendere</span><h1>Quali modelli mi aiutano?</h1>
+    <p class="muted">Descrivi la situazione oppure scegli il tipo di problema. ZO ti suggerisce i modelli adatti e le domande da farti.</p>
+    <label class="field" for="decText">La tua situazione (facoltativo)<textarea id="decText" placeholder="Es. Non so se accettare un nuovo lavoro che paga di più ma è lontano da casa.">${esc(decision.text)}</textarea></label>
+    <div><button class="primary" id="decGuess">Suggerisci i modelli</button></div>
+    <div class="field"><span>Oppure scegli il tipo di problema</span>
+      <div class="checks">${DECISIONS.map((x) => `<button class="small" data-dec="${x.id}" aria-pressed="${x.id === decision.id}" style="${x.id === decision.id ? "background:var(--ink);color:var(--bg);border-color:var(--ink)" : ""}">${esc(x.label)}</button>`).join("")}</div></div>
+  </div>
+  <div id="decOut"></div>`;
+  const out = $("#decOut");
+  if (d) {
+    out.innerHTML = `<section class="block" style="margin-top:18px">
+      <span class="eyebrow">${esc(d.label)}</span><h2>Modelli da usare</h2>
+      <div class="stack">${d.models.map((m) => `<article class="entry">
+        <span class="eyebrow">${esc(SHORT[m.cat])}</span>
+        <h3><a href="#m-${m.slug}" style="color:inherit">${esc(m.title)}</a></h3>
+        <p class="muted">${esc(m.tag)}</p>
+        <div class="prose"><ul>${m.q.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>
+      </article>`).join("")}</div>
+    </section>
+    <section class="block"><h2>Le tue risposte</h2>
+      <p class="muted">Rispondi alle domande che ti sembrano più utili. Salvando, la decisione finisce nel diario con i modelli usati.</p>
+      <label class="field" for="decNotes">Cosa mi fanno vedere questi modelli<textarea id="decNotes"></textarea></label>
+      <label class="field" for="decAct">Cosa farò, in concreto<textarea id="decAct" style="min-height:70px" placeholder="Il primo passo e quando lo faccio"></textarea></label>
+      <div><button class="primary" id="decSave">Salva nel diario</button></div></section>`;
+    $("#decSave").addEventListener("click", () => {
+      const notes = $("#decNotes").value.trim().slice(0, 3000); const act = $("#decAct").value.trim().slice(0, 1500);
+      if (!notes && !act) return $("#decNotes").focus();
+      S.journal.push({ id: Date.now().toString(36), slug: null, data: today(), tipo: "decisione", testo: (decision.text.trim() || d.label).slice(0, 2000),
+        risposte: notes ? [["Cosa mi fanno vedere i modelli", notes]] : [], azione: act, modelli: d.models.map((m) => m.slug) });
+      save(); toast("Decisione salvata nel diario"); decision = { text: "", id: "" }; location.hash = "diario";
+    });
+  }
+  $("#decText").addEventListener("input", (e) => { decision.text = e.target.value; });
+  $("#decGuess").addEventListener("click", () => {
+    if (!decision.text.trim()) { toast("Scrivi la situazione o scegli un tipo di problema."); return $("#decText").focus(); }
+    const g = guessDecision(decision.text);
+    if (!g) { toast("Non ho riconosciuto il tipo di problema: sceglilo dall'elenco qui sotto."); return; }
+    decision.id = g.id; renderDecision(); $("#decOut").scrollIntoView({ behavior: "smooth" });
+  });
+  app.querySelectorAll("[data-dec]").forEach((b) => b.addEventListener("click", () => { decision.id = b.dataset.dec; renderDecision(); $("#decOut").scrollIntoView({ behavior: "smooth" }); }));
 }
 
 /* Diario completo */
@@ -318,7 +484,7 @@ function renderJournal() {
   const draw = () => {
     const list = S.journal.slice().reverse();
     app.innerHTML = `<div class="stack"><span class="eyebrow">Diario</span><h1>Il mio diario</h1>
-      <p class="muted">${list.length ? `${list.length} note e schede di applicazione.` : "Le note e le schede “Applicalo a una tua situazione” che salvi nelle lezioni compaiono qui."}</p>
+      <p class="muted">${list.length ? `${list.length} note e schede di applicazione.` : "Qui compaiono le note, le schede “Applicalo a una tua situazione” e le decisioni che salvi."}</p>
       <div class="stack">${list.map(entryHTML).join("")}</div></div>`;
     bindEntryDelete(draw);
   };
@@ -326,7 +492,7 @@ function renderJournal() {
 }
 
 function complete(m) {
-  S.done[m.slug] = today(); if (S.current === m.slug) S.current = null;
+  S.done[m.slug] = today(); if (S.current === m.slug) S.current = null; schedule(m.slug);
   const n = currentModel(); if (n) S.startedAt[n.slug] = today(); save();
   toast(n ? `Completato. Prossimo: ${n.title}` : "Hai completato tutto il percorso");
   if (location.hash === "#piano") route(); else location.hash = "piano";
@@ -347,7 +513,8 @@ function renderSettings() {
   <section class="block">
     <h2>Ordine del percorso</h2>
     <div class="radios">
-      ${[["lista", "Nell'ordine dell'elenco", "Dal ragionamento alla narrazione, un'area dopo l'altra."],
+      ${[["essenziale", "Prima i 30 essenziali", "I modelli più utili nella vita di tutti i giorni, poi tutti gli altri."],
+         ["lista", "Nell'ordine dell'elenco", "Dal ragionamento alla narrazione, un'area dopo l'altra."],
          ["categorie", "Alternando le aree", "Ogni settimana un'area diversa, per collegare idee lontane."],
          ["casuale", "In ordine casuale", "Un ordine mescolato una volta e poi fisso."]].map(([v, t, d]) =>
         `<label for="ord-${v}"><input type="radio" name="ord" id="ord-${v}" value="${v}" ${S.order === v ? "checked" : ""}><span><strong>${t}</strong><span class="muted small">${d}</span></span></label>`).join("")}
@@ -363,7 +530,7 @@ function renderSettings() {
   </section>
   <section class="block">
     <h2>Ricomincia</h2>
-    <p class="muted">Azzera modelli completati, esercizi e risultati dei quiz. Il diario resta.</p>
+    <p class="muted">Azzera modelli completati, esercizi, risultati dei quiz e ripasso. Il diario resta.</p>
     <div class="row" id="resetRow"><button id="reset">Azzera i progressi</button></div>
   </section>`;
   $("#saveName").addEventListener("click", () => { S.nome = $("#pNome").value.trim().slice(0, 60); save(); toast("Salvato"); });
@@ -385,7 +552,7 @@ function renderSettings() {
   $("#reset").addEventListener("click", () => {
     $("#resetRow").innerHTML = `<span>Sei sicuro?</span><button class="primary" id="resetYes" style="background:var(--bad);border-color:var(--bad)">Sì, azzera</button><button id="resetNo">Annulla</button>`;
     $("#resetNo").onclick = renderSettings;
-    $("#resetYes").onclick = () => { S.done = {}; S.quiz = {}; S.ex = {}; S.current = null; S.startedAt = {}; save(); toast("Progressi azzerati"); location.hash = "piano"; };
+    $("#resetYes").onclick = () => { S.done = {}; S.quiz = {}; S.ex = {}; S.rev = {}; S.current = null; S.startedAt = {}; save(); toast("Progressi azzerati"); location.hash = "piano"; };
   });
 }
 

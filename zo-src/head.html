@@ -31,6 +31,7 @@
   --ok: #7fd197; --bad: #f08a80; color-scheme: dark }
 
 * { box-sizing: border-box }
+[hidden] { display: none !important }
 body { background: var(--bg); color: var(--ink); font: 16px/1.55 var(--f-ui); margin: 0 }
 .wrap { max-width: 680px; margin: 0 auto; padding-block: 12px 120px;
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
@@ -51,7 +52,9 @@ button, .btn { font: 600 .95rem var(--f-ui); border-radius: 999px; border: 1.5px
   color: var(--ink); padding: .6rem 1.1rem; cursor: pointer; display: inline-flex; align-items: center; gap: .45rem; text-decoration: none }
 button:hover { border-color: var(--teal) }
 button:disabled { opacity: .55; cursor: default }
-button.primary { background: var(--teal); border-color: var(--teal); color: var(--paper) }
+button.primary, .btn.primary { background: var(--teal); border-color: var(--teal); color: var(--paper) }
+.small { font-size: .88rem }
+button.small, .btn.small { padding: .4rem .8rem }
 button.ghost { background: transparent; border-color: transparent; padding-inline: .5rem }
 button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus-visible, .item:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px }
 input[type=text], input[type=search], textarea { width: 100%; font: 400 1rem var(--f-ui); color: var(--ink); background: var(--paper);

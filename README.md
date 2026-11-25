@@ -18,6 +18,9 @@ Il testo del libro resta nel browser (IndexedDB); lezioni e progressi sono salva
 `zo.html`: biblioteca **offline** di modelli mentali (87 iniziali + i gruppi dal PDF dei 169, vedi `zo-src/elenco-169.md`), per impararli uno a settimana e usarli nella vita di tutti i giorni. Non serve internet né un account: tutto il contenuto è dentro il file e i progressi restano nel browser.
 
 - **Il tuo piano**: modello della settimana (giorno X di 7), esercizio e domanda del giorno, progresso per area, prossime settimane.
+- **Percorso essenziale**: prima i 30 modelli più utili nella vita quotidiana, poi tutti gli altri (scelta in Impostazioni).
+- **Ripasso automatico**: i modelli completati o con il quiz fatto tornano a intervalli crescenti (1, 3, 7, 14, 30, 60 giorni); prima si prova a ricordare, poi una domanda.
+- **Ho una decisione da prendere**: descrivi la situazione o scegli il tipo di problema, ZO suggerisce 5 modelli con le loro domande e salva la decisione nel diario.
 - **Biblioteca**: 87 schede complete, con ricerca e filtri per area e per stato. Ogni scheda ha lettura Rapida o Approfondita, segnali per riconoscere il modello, esempi quotidiani, 3 esercizi da spuntare, domande da farsi, l'errore da evitare, un quiz e i modelli della stessa area.
 - **Applicalo a una tua situazione**: una scheda guidata (situazione, risposte alle domande del modello, cosa farò) che finisce nel diario.
 - **Ripasso** con quiz dai modelli completati e **Diario** di note e schede.
