@@ -2,11 +2,11 @@
 const KEY = 'giroConsegne.v1';
 const DEF = {
   settings:{ base:null, apiKey:'', promiseMin:60, prepMin:15, serviceMin:3, maxStops:3, maxExtra:10, maxWait:5, mode:'TWO_WHEELER', speedKmh:22 },
-  orders:[], drivers:[], cache:{}
+  orders:[], drivers:[], cache:{}, ext:{}
 };
 let S = load();
 function load(){
-  try{ const s = JSON.parse(localStorage.getItem(KEY)); if(s) return {...DEF, ...s, settings:{...DEF.settings, ...s.settings}}; }catch(e){}
+  try{ const s = JSON.parse(localStorage.getItem(KEY)); if(s) return {...DEF, ...s, ext:s.ext||{}, settings:{...DEF.settings, ...s.settings}}; }catch(e){}
   return structuredClone(DEF);
 }
 function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
@@ -131,12 +131,12 @@ async function routeMatrix(origins, dests){
 const activeOrders = () => S.orders.filter(o=>o.status!=='consegnato');
 const pendingOrders = () => S.orders.filter(o=>o.status==='attesa' && o.lat!=null);
 
-async function addOrder({address, platform='Sito', name='', at=now(), promiseMin, prepMin, deadline}){
+async function addOrder({address, platform='Sito', name='', at=now(), promiseMin, prepMin, deadline, readyAt, extKey}){
   const st = S.settings;
   const o = { id:uid(), address, platform, name, at,
     deadline: deadline ?? at + (promiseMin ?? st.promiseMin)*MIN,
-    readyAt: at + (prepMin ?? st.prepMin)*MIN,
-    status:'attesa', lat:null, lng:null };
+    readyAt: readyAt ?? at + (prepMin ?? st.prepMin)*MIN,
+    status:'attesa', lat:null, lng:null, extKey };
   S.orders.push(o); save(); render();
   try{ Object.assign(o, await geocode(address)); o.geoError=null; }
   catch(e){ o.geoError = e.message; }
@@ -149,6 +149,57 @@ function deliverTrip(driver){
   S.orders = S.orders.filter(o=>!ids.has(o.id));
   driver.trip=null; driver.out=false;
   save();
+}
+
+/* ===================== Ordini da Cashdesk ===================== */
+/* cashdesk.js legge la tabella degli ordini nella scheda di Cashdesk e la mette in chrome.storage.
+   Qui gli ordini nuovi diventano ordini di Giro Consegne; quelli spariti dalla lista di Cashdesk
+   (e non ancora partiti) vengono tolti. */
+const PLAT_DETECT = [[/uber/i,'Uber Eats'],[/wolt/i,'Wolt'],[/lieferando|takeaway|thuisbezorgd|just ?eat/i,'Just Eat'],[/telefon|phone/i,'Telefono']];
+const SKIP_ROW = /abhol|pick ?-?up|afhaal|asporto|geliefert|zugestellt|bezorgd|delivered|consegnato|storniert|cancel|annull|unterwegs|onderweg|in consegna/i;
+const platformOf = text => (PLAT_DETECT.find(([re])=>re.test(text)) || [,'Sito'])[1];
+const normKey = s => String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+const extKeyOf = r => r.id ? 'id:'+normKey(r.id) : 'a:'+normKey(r.street+r.zip+r.due);
+let cd = null, cdBusy = false;
+async function syncCashdesk(snap){
+  if(!snap) return;
+  cd = snap;
+  if(!S.settings.base || cdBusy) { render(); return; }
+  cdBusy = true;
+  try{
+    for(const [k,t] of Object.entries(S.ext)) if(now()-t > 24*60*MIN) delete S.ext[k];
+    const visible = new Set();
+    const nuovi = [];
+    for(const r of snap.rows){
+      if(r.driver) continue;                                   // già affidato a un corriere su Cashdesk
+      if(SKIP_ROW.test(r.status||'') || SKIP_ROW.test(r.text||'')) continue;
+      const key = extKeyOf(r); visible.add(key);
+      if(!S.ext[key]) nuovi.push([key,r]);
+    }
+    // ordini arrivati da Cashdesk, non ancora partiti, che non sono più nella lista: li togliamo
+    if(now()-snap.at < 2*60*MIN){
+      const before = S.orders.length;
+      S.orders = S.orders.filter(o => !(o.extKey && o.status==='attesa' && !visible.has(o.extKey)));
+      if(S.orders.length !== before) save();
+    }
+    for(const [key,r] of nuovi){
+      S.ext[key] = now(); save();
+      const st = S.settings;
+      let deadline = r.due ? timeToday(r.due) : r.countdown!=null ? now() + (+r.countdown)*MIN : now() + st.promiseMin*MIN;
+      const at = deadline - st.promiseMin*MIN;
+      await addOrder({ address: [r.street, [r.zip, r.city].filter(Boolean).join(' ')].filter(Boolean).join(', '),
+        platform: platformOf(r.text||''), name: [r.id && '#'+r.id, r.name].filter(Boolean).join(' '),
+        at, deadline, readyAt: at + st.prepMin*MIN, extKey: key });
+      if(!gReady) await new Promise(res=>setTimeout(res,1100));   // limiti di OpenStreetMap
+    }
+  } finally { cdBusy = false; render(); }
+}
+function cashdeskStatus(){
+  if(typeof chrome==='undefined' || !chrome.storage) return '';
+  if(!cd) return '<div class="cd warn">⚠ Cashdesk non ancora letto: apri (o ricarica) la scheda di Cashdesk con la lista delle consegne.</div>';
+  const age = Math.round((now()-cd.at)/MIN);
+  if(age > 2) return `<div class="cd warn">⚠ Cashdesk letto l'ultima volta alle ${fmt(cd.at)}: tieni aperta la scheda di Cashdesk con la lista delle consegne.</div>`;
+  return `<div class="cd ok">✓ Collegato a Cashdesk · ${cd.rows.length} righe lette alle ${fmt(cd.at)}</div>`;
 }
 
 /* ===================== Pianificazione ===================== */
@@ -253,13 +304,14 @@ function render(){
   // --- ordini ---
   const act = S.orders.filter(o=>o.status==='attesa').sort((a,b)=>a.deadline-b.deadline);
   $('pendCount').textContent = S.orders.filter(o=>o.status==='attesa').length;
+  $('cdStatus').innerHTML = cashdeskStatus();
   $('orderList').innerHTML = act.length ? act.map(o=>{
     const left = Math.round((o.deadline-t)/MIN);
     const drv = o.status==='in_consegna' ? S.drivers.find(d=>d.id===o.driverId) : null;
     return `<div class="item">
       <div class="grow">
         <div class="addr">${esc(o.label||o.address)}</div>
-        <div class="meta">${platTag(o.platform)} ${esc(o.name)} · entro <b>${fmt(o.deadline)}</b> (${left>=0?left+' min':'<span style="color:var(--bad)">in ritardo di '+(-left)+' min</span>'}) · pronto ${fmt(o.readyAt)}</div>
+        <div class="meta">${platTag(o.platform)}${o.extKey?' <span class="badge">Cashdesk</span>':''} ${esc(o.name)} · entro <b>${fmt(o.deadline)}</b> (${left>=0?left+' min':'<span style="color:var(--bad)">in ritardo di '+(-left)+' min</span>'}) · pronto ${fmt(o.readyAt)}</div>
         ${o.geoError?`<div class="meta" style="color:var(--bad)">⚠ ${esc(o.geoError)} — <a href="#" data-regeo="${o.id}">riprova</a></div>`:''}
         ${o.lat==null && !o.geoError?'<div class="meta">Cerco l\'indirizzo…</div>':''}
         ${drv?`<div class="meta">🛵 in consegna con ${esc(drv.name)}</div>`:''}
@@ -468,5 +520,9 @@ document.addEventListener('click', e => {
 
 /* ===================== Avvio ===================== */
 fillSettings(); setBadge(); render();
+if(typeof chrome!=='undefined' && chrome.storage){
+  chrome.storage.local.get('cashdesk').then(r=>syncCashdesk(r.cashdesk));
+  chrome.storage.onChanged.addListener((ch,area)=>{ if(area==='local' && ch.cashdesk) syncCashdesk(ch.cashdesk.newValue); });
+}
 if(S.settings.apiKey) checkKey().then(()=>{ render(); refreshMatrix(); }).catch(e=>console.warn('Chiave Google', e));
 setInterval(()=>{ render(); refreshMatrix(); }, 15000);

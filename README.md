@@ -23,6 +23,7 @@ e i fattorini in turno, propone **quale giro dare a ogni fattorino**, in che ord
 - Avvisa in rosso gli ordini che arriveranno in ritardo con i fattorini disponibili.
 - "Assegna e parti" mette il fattorino in giro e toglie i suoi ordini dalla lista; ogni consegna sparisce da sola all'orario di arrivo previsto e il fattorino torna libero da solo all'orario di rientro ("Rientrato" serve solo se torna prima).
 - "Apri in Google Maps" apre il percorso del giro nel navigatore.
+- **Ordini automatici da Cashdesk**: con la scheda di Cashdesk (`*.app.cashdesk.nl`) aperta sulla lista delle consegne, l'estensione legge la tabella ogni 5 secondi (colonne tipo Straße, PLZ, Stadt, Lieferzeit, Kurier, Bestellnummer) e aggiunge da sola gli ordini nuovi. Ignora ritiri, ordini con un corriere già assegnato e consegnati; toglie quelli spariti dalla lista. Non modifica nulla su Cashdesk.
 - Con una **chiave API Google** (Geocoding API + Routes API) usa indirizzi e tempi reali, con circa 3 richieste per ordine;
   senza chiave stima i tempi in linea d'aria con OpenStreetMap.
 - I dati restano in Chrome (localStorage dell'estensione).
@@ -32,3 +33,4 @@ e i fattorini in turno, propone **quale giro dare a ogni fattorino**, in che ord
 2. In Chrome apri `chrome://extensions` e attiva **Modalità sviluppatore** (in alto a destra).
 3. **Carica estensione non pacchettizzata** e scegli la cartella `consegne`.
 4. Clicca l'icona del puzzle in alto, fissa **Giro Consegne** con la puntina e cliccala per aprire il programma.
+5. Per aggiornare: sostituisci i file nella stessa cartella, premi la freccia circolare sulla scheda dell'estensione in `chrome://extensions` e ricarica la scheda di Cashdesk.
