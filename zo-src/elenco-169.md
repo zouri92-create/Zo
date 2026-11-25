@@ -4,7 +4,7 @@ Elenco trascritto dall'indice del PDF. Accanto a ogni modello:
 - **già in ZO** = era già tra gli 87 iniziali (indicato il nome della scheda);
 - **G1 / G2 / G3** = gruppo in cui viene caricato.
 
-141 modelli nuovi, divisi in 3 gruppi da 47. Stato: **G1 e G2 caricati**, G3 da fare.
+141 modelli nuovi, divisi in 3 gruppi da 47. Stato: **tutti e tre i gruppi caricati** (141 modelli nuovi).
 
 | N. | Modello | In ZO |
 |---|---|---|
