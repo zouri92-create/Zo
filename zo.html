@@ -2625,7 +2625,11 @@ const ESSENTIAL_SET = new Set(ESSENTIAL.map((m) => m.slug));
 
 /* «Ho una decisione da prendere»: tipi di problema, parole che li fanno riconoscere, modelli adatti. */
 const DECISIONS = [
-  { id: "lavoro", label: "Lavoro o carriera", words: ["lavoro", "carriera", "capo", "stipendio", "colloquio", "licenz", "promozion", "azienda", "ufficio", "dimett"],
+  { id: "squadra", label: "Gestire persone o un gruppo", words: ["licenzi", "assumer", "assunzion", "operai", "dipendent", "collaborator", "squadra", "team", "gruppo", "reparto", "personale", "lavorator", "apprendist", "socio", "soci"],
+    models: ["Il rasoio di Hanlon", "I cinque perché", "Incentivi", "Schiettezza accompagnata da cura", "Il pensiero di secondo ordine"] },
+  { id: "attivita", label: "La mia attività o il mio negozio", words: ["negozio", "attivit", "client", "concorren", "vendit", "fatturat", "ristorant", "bar ", "impresa", "prodott", "servizio", "fornitor", "partita iva"],
+    models: ["Le cinque forze di Porter", "La strategia dell'oceano blu", "Jobs To Be Done", "Nicchie", "La proposta di valore"] },
+  { id: "lavoro", label: "La mia carriera", words: ["lavoro", "carriera", "capo", "stipendio", "colloquio", "promozion", "azienda", "ufficio", "dimett", "cambiare lavoro", "offerta"],
     models: ["Ridurre il rimpianto futuro", "Il cerchio di competenza", "Compromessi", "Massimi locali e globali", "Decisioni rapide e correggibili"] },
   { id: "soldi", label: "Soldi, spese o investimenti", words: ["soldi", "spes", "comprar", "acquist", "investi", "risparm", "mutuo", "prestito", "debito", "azion", "prezzo", "euro"],
     models: ["Crescita composta", "Margine di sicurezza", "Avversione alla perdita", "La fallacia dei costi sommersi", "Diversificazione"] },
@@ -2635,7 +2639,7 @@ const DECISIONS = [
     models: ["Colli di bottiglia", "Energia di attivazione", "Dividere e affrontare", "La fallacia dei costi sommersi", "Principio di Pareto"] },
   { id: "tempo", label: "Troppe cose da fare", words: ["troppe cose", "tempo", "stress", "impegni", "agenda", "stanco", "priorit", "urgent"],
     models: ["La matrice di Eisenhower", "Principio di Pareto", "Le due liste di Buffett", "Migliorare togliendo", "La legge di Parkinson"] },
-  { id: "abitudine", label: "Cambiare un'abitudine", words: ["abitudin", "smettere", "fumo", "dieta", "palestra", "sport", "telefono", "social", "dormire", "sonno", "pigr"],
+  { id: "abitudine", label: "Cambiare un'abitudine", words: ["abitudin", "smettere", "smetter", "fumo", "fumar", "sigarett", "bere", "alcol", "dieta", "dimagr", "palestra", "sport", "telefono", "social", "dormire", "sonno", "pigr"],
     models: ["Il ciclo dell'abitudine", "Attrito e viscosità", "Sistemi e obiettivi", "Lo sconto iperbolico", "Il patto di Ulisse"] },
   { id: "notizia", label: "Valutare una notizia o un'idea", words: ["notizia", "articolo", "video", "dicono", "studio", "fonte", "vero", "falso", "credere"],
     models: ["Euristica della conferma", "Correlazione e causalità", "Il test CRAAP per le fonti", "Campionamento", "Falsificabilità"] },
@@ -3029,15 +3033,41 @@ function reviewStep(queue, idx, score) {
 }
 
 /* Ho una decisione da prendere */
-let decision = { text: "", id: "" };
+let decision = { text: "", id: "", auto: [] };
+/* Testo normalizzato: minuscole, senza accenti, lettere doppie ridotte (così «liccensiare» ≈ «licenziare»). */
+const norm = (t) => String(t).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]+/g, " ").replace(/([a-z])\1+/g, "$1").trim();
+function lev(a, b) {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++)
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length][b.length];
+}
+/* Una parola chiave corrisponde se una parola del testo inizia con essa, tollerando un errore di battitura. */
+function stemHit(tokens, text, stem) {
+  const s = norm(stem);
+  if (s.includes(" ")) return (" " + text + " ").includes(" " + s);
+  return tokens.some((t) => t.startsWith(s) || (s.length >= 5 && t.length >= s.length && lev(t.slice(0, s.length), s) <= 1));
+}
 function guessDecision(text) {
-  const t = " " + text.toLowerCase() + " "; let best = null, top = 0;
-  for (const d of DECISIONS) { const sc = d.words.filter((w) => t.includes(w)).length; if (sc > top) { top = sc; best = d; } }
+  const n = norm(text); const tokens = n.split(" "); let best = null, top = 0;
+  for (const d of DECISIONS) { const sc = d.words.filter((w) => stemHit(tokens, n, w)).length; if (sc > top) { top = sc; best = d; } }
   return best;
+}
+const STOP = new Set(["voglio", "vorrei", "devo", "dovrei", "posso", "potrei", "sono", "essere", "fare", "questo", "questa", "quello", "quella", "perche", "quando", "molto", "anche", "ancora", "sempre", "tutto", "tutti", "cosa", "come", "dove", "nostro", "nostra", "mio", "mia", "suo", "sua", "loro", "fatto", "avere", "dopo", "prima"]);
+let SEARCH_INDEX = null;
+/* Se il tipo di problema non è riconosciuto, cerca nella Biblioteca i modelli più vicini alle parole scritte. */
+function searchModels(text) {
+  SEARCH_INDEX ||= MODELS.map((m) => ({ m, title: norm(m.title).split(" "), body: norm([m.tag, m.sp, ...(m.es || []).map((e) => e[1]), ...(m.ri || []).flat()].join(" ")).split(" ") }));
+  const stems = [...new Set(norm(text).split(" ").filter((w) => w.length >= 5 && !STOP.has(w)).map((w) => w.slice(0, 5)))];
+  if (!stems.length) return [];
+  return SEARCH_INDEX.map(({ m, title, body }) => ({ m, sc: stems.reduce((a, st) => a + (title.some((w) => w.startsWith(st)) ? 3 : 0) + (body.some((w) => w.startsWith(st)) ? 1 : 0), 0) }))
+    .filter((x) => x.sc > 0).sort((a, b) => b.sc - a.sc || (ESSENTIAL_SET.has(b.m.slug) - ESSENTIAL_SET.has(a.m.slug))).slice(0, 5).map((x) => x.m);
 }
 function renderDecision() {
   setTop(backBtn()); bindBack();
-  const d = DECISIONS.find((x) => x.id === decision.id);
+  const d = decision.id === "auto" ? { id: "auto", label: "Suggeriti dalle tue parole", models: decision.auto.map((s) => BY[s]).filter(Boolean) }
+    : DECISIONS.find((x) => x.id === decision.id);
   app.innerHTML = `<div class="stack">
     <span class="eyebrow">Ho una decisione da prendere</span><h1>Quali modelli mi aiutano?</h1>
     <p class="muted">Descrivi la situazione oppure scegli il tipo di problema. ZO ti suggerisce i modelli adatti e le domande da farti.</p>
@@ -3068,15 +3098,20 @@ function renderDecision() {
       if (!notes && !act) return $("#decNotes").focus();
       S.journal.push({ id: Date.now().toString(36), slug: null, data: today(), tipo: "decisione", testo: (decision.text.trim() || d.label).slice(0, 2000),
         risposte: notes ? [["Cosa mi fanno vedere i modelli", notes]] : [], azione: act, modelli: d.models.map((m) => m.slug) });
-      save(); toast("Decisione salvata nel diario"); decision = { text: "", id: "" }; location.hash = "diario";
+      save(); toast("Decisione salvata nel diario"); decision = { text: "", id: "", auto: [] }; location.hash = "diario";
     });
   }
   $("#decText").addEventListener("input", (e) => { decision.text = e.target.value; });
   $("#decGuess").addEventListener("click", () => {
     if (!decision.text.trim()) { toast("Scrivi la situazione o scegli un tipo di problema."); return $("#decText").focus(); }
     const g = guessDecision(decision.text);
-    if (!g) { toast("Non ho riconosciuto il tipo di problema: sceglilo dall'elenco qui sotto."); return; }
-    decision.id = g.id; renderDecision(); $("#decOut").scrollIntoView({ behavior: "smooth" });
+    if (g) decision.id = g.id;
+    else {
+      const found = searchModels(decision.text);
+      if (!found.length) { decision.id = ""; decision.auto = []; renderDecision(); toast("Non ho trovato modelli adatti: scegli il tipo di problema dall'elenco qui sotto."); return; }
+      decision.id = "auto"; decision.auto = found.map((m) => m.slug);
+    }
+    renderDecision(); $("#decOut").scrollIntoView({ behavior: "smooth" });
   });
   app.querySelectorAll("[data-dec]").forEach((b) => b.addEventListener("click", () => { decision.id = b.dataset.dec; renderDecision(); $("#decOut").scrollIntoView({ behavior: "smooth" }); }));
 }
