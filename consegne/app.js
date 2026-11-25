@@ -268,6 +268,7 @@ function buildTrip(t0, pool){
             const old = ev.etas[trip.indexOf(o)];
             if(e2.etas[i] - old > st.maxExtra*MIN) ok = false;
             if(e2.etas[i] > o.deadline && old <= o.deadline) ok = false;   // non far diventare tardi chi era in orario
+            if(old > o.deadline && e2.etas[i] - old > 2*MIN) ok = false;    // chi è già in ritardo non deve aspettare altre fermate
           }
         }
         if(!ok) continue;
