@@ -151,12 +151,12 @@ async function routeMatrix(origins, dests){
 const activeOrders = () => S.orders.filter(o=>o.status!=='consegnato');
 const pendingOrders = () => S.orders.filter(o=>o.status==='attesa' && o.lat!=null);
 
-async function addOrder({address, platform='Sito', name='', at=now(), promiseMin, prepMin, deadline, readyAt, extKey}){
+async function addOrder({address, platform='Sito', name='', at=now(), promiseMin, prepMin, deadline, readyAt, extKey, srcInfo}){
   const st = S.settings;
   const o = { id:uid(), address, platform, name, at,
     deadline: deadline ?? at + (promiseMin ?? st.promiseMin)*MIN,
     readyAt: readyAt ?? at + (prepMin ?? st.prepMin)*MIN,
-    status:'attesa', lat:null, lng:null, extKey };
+    status:'attesa', lat:null, lng:null, extKey, srcInfo };
   S.orders.push(o); save(); render();
   try{ Object.assign(o, await geocode(address)); o.geoError=null; }
   catch(e){ o.geoError = e.message; }
@@ -186,9 +186,9 @@ function deliverTrip(driver){
 /* cashdesk.js legge la tabella degli ordini nella scheda di Cashdesk e la mette in chrome.storage.
    Qui gli ordini nuovi diventano ordini di Giro Consegne; quelli spariti dalla lista di Cashdesk
    (e non ancora partiti) vengono tolti. */
-const PLAT_DETECT = [[/uber/i,'Uber Eats'],[/wolt/i,'Wolt'],[/lieferando|takeaway|thuisbezorgd|just ?eat/i,'Just Eat'],[/telefon|phone/i,'Telefono']];
+const PLAT_DETECT = [[/uber/i,'Uber Eats'],[/wolt/i,'Wolt'],[/lieferando|takeaway|thuisbezorgd|just.?eat/i,'Just Eat'],[/telefon|phone|anruf/i,'Telefono']];
 const SKIP_ROW = /abhol|pick ?-?up|afhaal|asporto|geliefert|zugestellt|bezorgd|delivered|consegnato|storniert|cancel|annull|unterwegs|onderweg|in consegna/i;
-const platformOf = text => (PLAT_DETECT.find(([re])=>re.test(text)) || [,'Sito'])[1];
+const platformOf = (text, source='') => (PLAT_DETECT.find(([re])=>re.test(source)) || PLAT_DETECT.find(([re])=>re.test(text)) || [,'Sito'])[1];
 const normKey = s => String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
 const extKeyOf = r => r.id ? 'id:'+normKey(r.id) : 'a:'+normKey(r.street+r.zip+r.due);
 let cd = null, cdBusy = false;
@@ -219,10 +219,10 @@ async function syncCashdesk(snap){
       let deadline = r.due ? timeToday(r.due) : r.countdown!=null ? now() + (+r.countdown)*MIN : now() + st.promiseMin*MIN;
       const at = deadline - st.promiseMin*MIN;
       const o = await addOrder({ address: [r.street, [r.zip, r.city].filter(Boolean).join(' ')].filter(Boolean).join(', '),
-        platform: platformOf(r.text||''), name: [r.id && '#'+r.id, r.name].filter(Boolean).join(' '),
+        platform: platformOf(r.text||'', r.source||''), srcInfo: (r.source||'').slice(0,200), name: [r.id && '#'+r.id, r.name].filter(Boolean).join(' '),
         at, deadline, readyAt: at + st.prepMin*MIN, extKey: key });
       // orario molto più in là del solito: è un ordine con appuntamento
-      if(r.due && deadline - now() > (st.promiseMin+10)*MIN){ setWish(o, deadline); o.at = now(); o.readyAt = now(); save(); render(); }
+      if((r.due || r.countdown!=null) && deadline - now() > (st.promiseMin+10)*MIN){ setWish(o, deadline); o.at = now(); o.readyAt = now(); save(); render(); }
       if(!gReady) await new Promise(res=>setTimeout(res,1100));   // limiti di OpenStreetMap
     }
   } finally { cdBusy = false; render(); }
@@ -364,7 +364,7 @@ function render(){
     return `<div class="item">
       <div class="grow">
         <div class="addr">${esc(o.label||o.address)}</div>
-        <div class="meta">${platTag(o.platform)}${o.extKey?' <span class="badge">Cashdesk</span>':''} ${esc(o.name)} · ${o.wish?`<b class="wish">⏰ alle ${fmt(o.wish)}</b> · `:''}entro <b>${fmt(o.deadline)}</b> (${left>=0?left+' min':'<span style="color:var(--bad)">in ritardo di '+(-left)+' min</span>'}) · pronto ${fmt(o.readyAt)}</div>
+        <div class="meta">${platTag(o.platform)}${o.extKey?` <span class="badge" title="Icona letta su Cashdesk: ${esc(o.srcInfo||'nessuna')}">Cashdesk</span>`:''} ${esc(o.name)} · ${o.wish?`<b class="wish">⏰ alle ${fmt(o.wish)}</b> · `:''}entro <b>${fmt(o.deadline)}</b> (${left>=0?left+' min':'<span style="color:var(--bad)">in ritardo di '+(-left)+' min</span>'}) · pronto ${fmt(o.readyAt)}</div>
         ${o.geoError?`<div class="meta" style="color:var(--bad)">⚠ ${esc(o.geoError)} — <a href="#" data-regeo="${o.id}">riprova</a></div>`:''}
         ${o.lat==null && !o.geoError?'<div class="meta">Cerco l\'indirizzo…</div>':''}
         ${drv?`<div class="meta">🛵 in consegna con ${esc(drv.name)}</div>`:''}

@@ -19,6 +19,22 @@
     status:  ['status', 'stato'],
   };
 
+  // Testo nascosto di una cella: icone e immagini (es. il logo della piattaforma nella colonna "Quelle")
+  function hiddenText(cell) {
+    if (!cell) return '';
+    const parts = [];
+    for (const el of cell.querySelectorAll('img, svg, [title], [aria-label], [alt], [class], use')) {
+      parts.push(el.getAttribute('alt'), el.getAttribute('title'), el.getAttribute('aria-label'),
+        el.getAttribute('src'), el.getAttribute('href') || el.getAttribute('xlink:href'), el.getAttribute('class'));
+    }
+    const bg = getComputedStyle(cell).backgroundImage; if (bg && bg !== 'none') parts.push(bg);
+    for (const el of cell.querySelectorAll('*')) { const b = getComputedStyle(el).backgroundImage; if (b && b !== 'none') parts.push(b); }
+    return parts.filter(Boolean).join(' ').slice(0, 600);
+  }
+  function cellElsOf(row) {
+    return Array.from(row.querySelectorAll(':scope > th, :scope > td, :scope > [role=cell], :scope > [role=gridcell], :scope > [role=columnheader]'));
+  }
+
   function cellsOf(row) {
     return Array.from(row.querySelectorAll(':scope > th, :scope > td, :scope > [role=cell], :scope > [role=gridcell], :scope > [role=columnheader]'),
       c => (c.innerText || '').trim().replace(/\s+/g, ' '));
@@ -51,13 +67,16 @@
         const street = get('street');
         if (!street || !/\d/.test(street)) continue;              // serve un civico
         const driver = get('driver');
+        const els = cellElsOf(row);
+        const srcHidden = cols.source >= 0 ? hiddenText(els[cols.source]) : '';
         rows.push({
           id: get('id'), street, zip: get('zip'), city: get('city'), name: get('name'),
           due: (get('due').match(/\b([01]?\d|2[0-3]):[0-5]\d\b/) || [''])[0],
           countdown: (get('countdown').replace('−', '-').match(/^([+-]?\d{1,3})\s*(?:min\.?)?$/i) || [])[1] ?? null,
           driver: /^[-–—]?$/.test(driver.trim()) ? '' : driver,
           status: get('status'),
-          text: (get('source') + ' ' + cells.join(' ')).slice(0, 400),   // per riconoscere la piattaforma
+          source: (get('source') + ' ' + srcHidden).trim(),
+          text: (get('source') + ' ' + srcHidden + ' ' + cells.join(' ')).slice(0, 900),   // per riconoscere la piattaforma
         });
       }
     }
