@@ -53,10 +53,30 @@ async function geocode(address){
   if(gReady) return googleGeocode(address, S.settings.apiKey);
   let url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(address);
   if(S.settings.base){ const b=S.settings.base; url += `&viewbox=${b.lng-.2},${b.lat+.15},${b.lng+.2},${b.lat-.15}`; }
-  const r = await fetch(url, {headers:{'Accept-Language':'it'}});
-  const j = await r.json();
-  if(!j[0]) throw new Error('Indirizzo non trovato');
-  return {lat:+j[0].lat, lng:+j[0].lon, label:j[0].display_name.split(',').slice(0,3).join(',')};
+  try{
+    const r = await fetch(url, {headers:{'Accept-Language':'it'}});
+    const j = r.ok ? await r.json() : null;
+    if(j && j[0]) return {lat:+j[0].lat, lng:+j[0].lon, label:j[0].display_name.split(',').slice(0,3).join(',')};
+  }catch(e){ /* OpenStreetMap occupato: provo l'altro servizio */ }
+  // secondo servizio gratuito (Photon), cercando vicino al locale
+  let u2 = 'https://photon.komoot.io/api/?limit=1&q=' + encodeURIComponent(address);
+  if(S.settings.base) u2 += `&lat=${S.settings.base.lat}&lon=${S.settings.base.lng}`;
+  let f;
+  try{ const r2 = await fetch(u2); f = r2.ok ? (await r2.json()).features?.[0] : null; }
+  catch(e){ throw new Error('Servizio mappe occupato, riprovo da solo tra poco'); }
+  if(!f) throw new Error('Indirizzo non trovato');
+  const p = f.properties || {};
+  const label = [[p.street||p.name, p.housenumber].filter(Boolean).join(' '), p.district||p.city].filter(Boolean).join(', ');
+  return {lat:f.geometry.coordinates[1], lng:f.geometry.coordinates[0], label: label || address};
+}
+/* Ogni minuto riprova da solo gli indirizzi non trovati (uno alla volta) */
+async function retryGeo(){
+  const o = S.orders.find(x=>x.geoError && x.lat==null && now()-(x.geoTry||0) > 60000);
+  if(!o) return;
+  o.geoTry = now();
+  try{ Object.assign(o, await geocode(o.address)); o.geoError = null; }
+  catch(e){ o.geoError = e.message; }
+  save(); render(); refreshMatrix();
 }
 
 /* ===================== Tempi di viaggio ===================== */
@@ -571,7 +591,7 @@ if(typeof chrome!=='undefined' && chrome.storage){
   chrome.storage.onChanged.addListener((ch,area)=>{ if(area==='local' && ch.cashdesk) syncCashdesk(ch.cashdesk.newValue); });
 }
 if(S.settings.apiKey) checkKey().then(()=>{ render(); refreshMatrix(); }).catch(e=>console.warn('Chiave Google', e));
-setInterval(()=>{ render(); refreshMatrix(); }, 15000);
+setInterval(()=>{ render(); refreshMatrix(); retryGeo(); }, 15000);
 
 document.addEventListener('change', e => {
   if(!e.target.classList?.contains('pick')) return;

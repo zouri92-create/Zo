@@ -9,3 +9,13 @@ chrome.action.onClicked.addListener(async () => {
     await chrome.tabs.create({ url });
   }
 });
+
+// Dopo un aggiornamento dell'estensione la scheda di Cashdesk già aperta smette di essere letta:
+// rimetto subito il lettore nelle schede di Cashdesk, così non serve premere F5.
+chrome.runtime.onInstalled.addListener(async () => {
+  const tabs = await chrome.tabs.query({ url: 'https://*.app.cashdesk.nl/*' });
+  for (const tab of tabs) {
+    try { await chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: ['cashdesk.js'] }); }
+    catch (e) { /* scheda non raggiungibile: basterà ricaricarla */ }
+  }
+});
