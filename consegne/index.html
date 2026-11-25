@@ -142,7 +142,7 @@ details summary{cursor:pointer;font-weight:600}
       <div class="meta" id="baseInfo"></div>
       <label>Chiave API Google Maps</label>
       <div class="row"><input id="sKey" type="password" placeholder="AIza..."><button id="sKeyBtn" style="flex:none">Collega</button></div>
-      <div class="meta">Serve per indirizzi precisi e tempi reali con traffico (Maps JavaScript API + Geocoding + Routes API). Senza chiave i tempi sono stimati in linea d'aria.</div>
+      <div class="meta">Serve per indirizzi precisi e tempi di percorrenza reali (Maps JavaScript API + Geocoding + Routes API). Usa circa 3 richieste a Google per ordine, per restare nella quota gratuita. Senza chiave i tempi sono stimati in linea d'aria.</div>
       <div class="row">
         <div><label>Attesa promessa (min)</label><input id="sPromise" type="number" min="10" step="5"></div>
         <div><label>Preparazione (min)</label><input id="sPrep" type="number" min="0" step="5"></div>
@@ -204,7 +204,7 @@ function loadGoogle(key){
 }
 function setBadge(){
   const b = $('gBadge');
-  b.textContent = gReady ? 'Google Maps collegato · tempi con traffico' : 'Tempi stimati (senza Google)';
+  b.textContent = gReady ? 'Google Maps collegato · tempi reali' : 'Tempi stimati (senza Google)';
   b.classList.toggle('on', gReady);
 }
 
@@ -237,29 +237,45 @@ function haversineKm(a,b){
   return 2*R*Math.asin(Math.sqrt(h));
 }
 /* minuti da a -> b */
+/* Per contenere i costi Google si chiedono solo i tragitti locale <-> cliente (2 per ordine, tenuti in memoria).
+   I tragitti tra un cliente e l'altro si stimano in linea d'aria, corretti con il rapporto osservato sui tragitti Google. */
+const CACHE_DAYS = 14;
+function estimate(a,b){
+  const km = haversineKm(a,b)*1.35;           // le strade non sono in linea d'aria
+  return km / S.settings.speedKmh * 60 + 2;   // +2 min parcheggio/partenza
+}
+function calib(){
+  const base = S.settings.base; if(!base) return 1;
+  const r = [];
+  for(const [k,c] of Object.entries(S.cache)){
+    const [a,b] = k.split('>').map(x=>{const [lat,lng]=x.split(',').map(Number); return {lat,lng};});
+    const est = estimate(a,b); if(est > 3) r.push(c.m/est);
+  }
+  if(r.length < 3) return 1;
+  r.sort((x,y)=>x-y); return Math.min(2.5, Math.max(.4, r[Math.floor(r.length/2)]));
+}
+let calibCache = {n:-1, v:1};
 function tt(a,b){
   if(pkey(a)===pkey(b)) return 0;
   const c = S.cache[pkey(a)+'>'+pkey(b)];
-  if(c && now()-c.at < 45*MIN) return c.m;
-  const km = haversineKm(a,b)*1.35;           // le strade non sono in linea d'aria
-  return Math.round(km / S.settings.speedKmh * 60 + 2);   // +2 min parcheggio/partenza
+  if(c) return c.m;
+  const n = Object.keys(S.cache).length;
+  if(calibCache.n !== n) calibCache = {n, v:calib()};
+  return Math.round(estimate(a,b) * calibCache.v);
 }
 let matrixBusy = false;
 async function refreshMatrix(){
   if(!gReady || matrixBusy || !S.settings.base) return;
-  const pts = [S.settings.base, ...activeOrders().filter(o=>o.lat!=null)];
-  const uniq = [...new Map(pts.map(p=>[pkey(p),{lat:p.lat,lng:p.lng}])).values()];
-  const stale = (a,b) => { const c=S.cache[pkey(a)+'>'+pkey(b)]; return !c || now()-c.at > 40*MIN; };
-  const need = uniq.filter(a => uniq.some(b => pkey(a)!==pkey(b) && (stale(a,b)||stale(b,a))));
-  if(!need.length) return;
+  const base = {lat:S.settings.base.lat, lng:S.settings.base.lng};
+  for(const [k,c] of Object.entries(S.cache)) if(now()-c.at > CACHE_DAYS*24*60*MIN) delete S.cache[k];
+  const pts = [...new Map(activeOrders().filter(o=>o.lat!=null).map(o=>[pkey(o),{lat:o.lat,lng:o.lng}])).values()];
+  const out = pts.filter(p=>!S.cache[pkey(base)+'>'+pkey(p)]);
+  const back = pts.filter(p=>!S.cache[pkey(p)+'>'+pkey(base)]);
+  if(!out.length && !back.length) return;
   matrixBusy = true;
   try{
-    // per ogni punto da aggiornare: righe (need -> tutti) e colonne (tutti -> need)
-    const chunks = (arr,n)=>arr.reduce((acc,x,i)=>(i%n?acc[acc.length-1].push(x):acc.push([x]),acc),[]);
-    const jobs = [];
-    for(const o of chunks(need,10)) for(const d of chunks(uniq,25)) jobs.push([o,d]);
-    for(const o of chunks(uniq,25)) for(const d of chunks(need,10)) jobs.push([o,d]);
-    for(const [o,d] of jobs) await routeMatrix(o,d);
+    for(let i=0;i<out.length;i+=25) await routeMatrix([base], out.slice(i,i+25));
+    for(let i=0;i<back.length;i+=25) await routeMatrix(back.slice(i,i+25), [base]);
     save(); render();
   }catch(e){ console.warn('Routes API', e); }
   finally{ matrixBusy = false; }
@@ -269,7 +285,7 @@ async function routeMatrix(origins, dests){
   const r = await fetch('https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix', {
     method:'POST',
     headers:{'Content-Type':'application/json','X-Goog-Api-Key':S.settings.apiKey,'X-Goog-FieldMask':'originIndex,destinationIndex,duration,condition'},
-    body: JSON.stringify({origins:origins.map(wp), destinations:dests.map(wp), travelMode:S.settings.mode, routingPreference: S.settings.mode==='DRIVE'?'TRAFFIC_AWARE':undefined, languageCode:'it'})
+    body: JSON.stringify({origins:origins.map(wp), destinations:dests.map(wp), travelMode:S.settings.mode, languageCode:'it'})
   });
   if(!r.ok) throw new Error('Routes API '+r.status+': '+(await r.text()).slice(0,200));
   const rows = await r.json();
