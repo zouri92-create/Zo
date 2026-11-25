@@ -161,7 +161,6 @@ details summary{cursor:pointer;font-weight:600}
       </div>
       <div class="row" style="margin-top:12px">
         <button id="demoBtn">Carica esempio</button>
-        <button id="clearBtn">Svuota consegnati</button>
       </div>
     </div>
   </section>
@@ -299,9 +298,10 @@ async function addOrder({address, platform='Sito', name='', at=now(), promiseMin
 }
 
 function deliverTrip(driver){
-  for(const id of driver.trip?.orderIds||[]){ const o=S.orders.find(x=>x.id===id); if(o){ o.status='consegnato'; o.deliveredAt=now(); } }
+  const ids = new Set(driver.trip?.orderIds||[]);
+  S.orders = S.orders.filter(o=>!ids.has(o.id));
   driver.trip=null; driver.out=false;
-  save(); render();
+  save();
 }
 
 /* ===================== Pianificazione ===================== */
@@ -390,15 +390,31 @@ function etaClass(eta, deadline){
 }
 function platTag(p){ return `<span class="plat" style="background:${PLAT_COL[p]||'#777'}">${esc(p)}</span>`; }
 
+/* Aggiornamento automatico: all'orario di arrivo previsto l'ordine sparisce,
+   all'orario di rientro previsto il fattorino torna libero. */
+function autoUpdate(){
+  const t = now(); let changed = false;
+  for(const d of S.drivers){
+    if(!d.out || !d.trip) continue;
+    d.trip.orderIds.forEach((id,k)=>{
+      if(t >= d.trip.etas[k] && S.orders.some(o=>o.id===id)){ S.orders = S.orders.filter(o=>o.id!==id); changed = true; }
+    });
+    if(t >= d.trip.ret){ deliverTrip(d); changed = true; }
+  }
+  S.orders = S.orders.filter(o=>o.status!=='consegnato');
+  if(changed) save();
+}
+
 let lastTrips = [];
 function render(){
+  autoUpdate();
   const t = now();
   $('clock').textContent = fmt(t);
   const st = S.settings;
   $('baseInfo').textContent = st.base ? '📍 '+st.base.label : 'Imposta l\'indirizzo del locale per iniziare.';
 
   // --- ordini ---
-  const act = activeOrders().sort((a,b)=>a.deadline-b.deadline);
+  const act = S.orders.filter(o=>o.status==='attesa').sort((a,b)=>a.deadline-b.deadline);
   $('pendCount').textContent = S.orders.filter(o=>o.status==='attesa').length;
   $('orderList').innerHTML = act.length ? act.map(o=>{
     const left = Math.round((o.deadline-t)/MIN);
@@ -415,7 +431,7 @@ function render(){
         <button class="small" data-ready="${o.id}" title="Segna pronto adesso">Pronto</button>
         <button class="small" data-del="${o.id}" title="Elimina">✕</button>
       </div></div>`;
-  }).join('') : '<div class="empty">Nessun ordine aperto.</div>';
+  }).join('') : '<div class="empty">Nessun ordine in attesa.</div>';
 
   // --- fattorini ---
   $('driverList').innerHTML = S.drivers.length ? S.drivers.map((d,i)=>{
@@ -458,7 +474,7 @@ function render(){
       <div class="trip-head"><b>${esc(d.name)}</b><span class="badge">in giro dalle ${fmt(d.trip.dep)}</span></div>
       <ul class="stops">${d.trip.orderIds.map((id,k)=>{const o=S.orders.find(x=>x.id===id); if(!o) return ''; const eta=d.trip.etas[k];
         return `<li><span class="grow">${esc(o.label||o.address)} ${platTag(o.platform)}</span><span class="eta ${etaClass(eta,o.deadline)}">~${fmt(eta)}</span></li>`;}).join('')}</ul>
-      <div class="ret">Rientro previsto <b>${fmt(d.trip.ret)}</b></div></div>`;
+      <div class="ret">Rientro previsto <b>${fmt(d.trip.ret)}</b> · le consegne spariscono da sole all'orario di arrivo</div></div>`;
   }
   trips.forEach(tr=>{
     const d = tr.driver, i = S.drivers.indexOf(d), col = TRIP_COL[i%TRIP_COL.length];
@@ -557,7 +573,6 @@ $('dAdd').onclick = () => {
   $('dName').value=''; save(); render();
 };
 $('dName').onkeydown = e => { if(e.key==='Enter') $('dAdd').click(); };
-$('clearBtn').onclick = () => { S.orders = S.orders.filter(o=>o.status!=='consegnato'); save(); render(); };
 $('demoBtn').onclick = () => {
   if(S.orders.length && !confirm('Aggiungo ordini di esempio a quelli esistenti?')) return;
   if(!S.settings.base) S.settings.base = {address:'Piazza del Duomo, Milano', label:'Piazza del Duomo, Milano (esempio)', lat:45.4642, lng:9.1900};
@@ -586,7 +601,7 @@ document.addEventListener('click', e => {
       d.out = true; d.trip = {orderIds:tr.stops.map(o=>o.id), etas:ev.etas, dep:Math.max(now(),ev.dep), ret:ev.ret};
     }
   }
-  if(ds.back){ const d=S.drivers.find(x=>x.id===ds.back); if(d) deliverTrip(d); return; }
+  if(ds.back){ const d=S.drivers.find(x=>x.id===ds.back); if(d) deliverTrip(d); }
   if(ds.shift){ const d=S.drivers.find(x=>x.id===ds.shift); if(d) d.onShift=!d.onShift; }
   if(ds.rmd){ const d=S.drivers.find(x=>x.id===ds.rmd); if(d && (!d.out || confirm('Il fattorino è in giro: rimuoverlo?'))){ if(d.out) deliverTrip(d); S.drivers=S.drivers.filter(x=>x!==d); } }
   save(); render();
@@ -595,7 +610,7 @@ document.addEventListener('click', e => {
 /* ===================== Avvio ===================== */
 initMap(); fillSettings(); setBadge(); render();
 if(S.settings.apiKey) loadGoogle(S.settings.apiKey).then(()=>{ setBadge(); refreshMatrix(); }).catch(()=>{});
-setInterval(()=>{ render(); refreshMatrix(); }, 30000);
+setInterval(()=>{ render(); refreshMatrix(); }, 15000);
 </script>
 </body>
 </html>

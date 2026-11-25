@@ -21,7 +21,7 @@ e i fattorini in turno, propone **quale giro dare a ogni fattorino**, in che ord
 
 - Parte sempre dall'ordine più urgente e ci abbina gli ordini vicini solo se nessun cliente sfora l'orario promesso (default 60 min).
 - Avvisa in rosso gli ordini che arriveranno in ritardo con i fattorini disponibili.
-- "Assegna e parti" mette il fattorino in giro; "Rientrato" chiude le consegne.
+- "Assegna e parti" mette il fattorino in giro e toglie i suoi ordini dalla lista; ogni consegna sparisce da sola all'orario di arrivo previsto e il fattorino torna libero da solo all'orario di rientro ("Rientrato" serve solo se torna prima).
 - Con una **chiave API Google Maps** (Maps JavaScript API, Geocoding API, Routes API) usa indirizzi e tempi reali con traffico;
   senza chiave stima i tempi in linea d'aria con OpenStreetMap.
 - I dati restano nel browser (localStorage). Basta aprire il file in Chrome.
