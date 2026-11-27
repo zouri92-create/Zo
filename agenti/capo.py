@@ -50,10 +50,10 @@ FILE_AGENTI = CARTELLA / "agenti.json"
 FILE_AGENTI_INIZIALI = CARTELLA / "agenti_iniziali.json"
 CARTELLA_LAVORO = CARTELLA / "lavoro"
 
-# Modelli: cambiali con le variabili d'ambiente se vuoi spendere meno,
-# per esempio MODELLO_SPECIALISTI=claude-haiku-5-5
-MODELLO_CAPO = os.environ.get("MODELLO_CAPO", "claude-opus-5-5")
-MODELLO_SPECIALISTI = os.environ.get("MODELLO_SPECIALISTI", "claude-opus-5-5")
+# Modelli: Sonnet per tutti (buon rapporto qualità/prezzo). Si cambiano nel file .env,
+# per esempio MODELLO_CAPO=claude-opus-5-5 per un capo più capace.
+MODELLO_CAPO = os.environ.get("MODELLO_CAPO", "claude-sonnet-5-5")
+MODELLO_SPECIALISTI = os.environ.get("MODELLO_SPECIALISTI", "claude-sonnet-5-5")
 MAX_GIRI = 25  # limite di passaggi per ogni compito, per non spendere all'infinito
 
 client = anthropic.Anthropic()

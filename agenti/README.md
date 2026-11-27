@@ -21,6 +21,7 @@ Si occupa di tutto il marketing della pizzeria. **Tutto ciò che vedono i client
 1. **Compila `pizzeria.md`**: nome, menu e prezzi, orari, telefono, tono di voce, colori, regione (per il tedesco locale), budget e zona dei clienti. L'agente lo legge ogni volta e non inventa prezzi né offerte.
 2. **Metti le foto delle tue pizze** in `lavoro/foto/` (jpg o png). Sono la base migliore: le pizze vere.
 3. **Social**: impagina foto e testi in grafiche (formato post 4:5 per Facebook, storia 9:16 per TikTok), le guarda e le rifà se non vanno bene. Può anche generare immagini AI per sfondi ed eventi.
+   - **Sfondo brutto?** Carica la foto così com'è: l'agente scontorna la pizza (resta quella vera) e la mette su uno sfondo nuovo, generato con l'AI (legno, pietra, marmo…), una tua immagine in `lavoro/sfondi/` o una tinta da studio con i colori del locale. Vengono meglio le foto in cui la pizza si vede intera.
    - **Facebook**: ti mostra file e testo e pubblica solo dopo il tuo `ok`. Se scrivi cosa cambiare, corregge e ripropone.
    - **TikTok**: dopo il tuo `ok` manda il video nelle **bozze**. Aggiungi la musica nell'app e pubblichi da lì.
 4. **Scheda Google (Maps)**: legge chiamate, indicazioni e visualizzazioni, legge le recensioni e propone le risposte, pubblica aggiornamenti. Ogni risposta e ogni post li pubblica solo dopo il tuo `ok`.
@@ -46,6 +47,7 @@ python capo.py
 ```
 
 Serve anche **ffmpeg** per i video di TikTok (`brew install ffmpeg` su Mac, `sudo apt install ffmpeg` su Linux, oppure da ffmpeg.org su Windows).
+La prima volta che cambia uno sfondo scarica il modello per lo scontorno (circa 180 MB, una volta sola).
 Per usare un tuo carattere, mettilo in `font/titolo.ttf` e `font/testo.ttf`.
 
 ## Collegare i social
@@ -80,10 +82,9 @@ Ogni servizio è facoltativo: se ne manca uno, l'agente lo dice e lavora con gli
 ## Costi
 
 Gira sul tuo computer: paghi solo l'uso delle API, niente hosting.
-Di default tutti gli agenti Claude usano `claude-opus-5-5`. Per spendere meno sugli specialisti, nel `.env`:
+Di default tutti gli agenti usano **Claude Sonnet 5.5** (`claude-sonnet-5-5`): circa 0,15–0,25 $ per un post con grafica.
+Per un capo più capace (costa circa il doppio), nel `.env`: `MODELLO_CAPO=claude-opus-5-5`.
 
-```
-MODELLO_SPECIALISTI=claude-sonnet-5-5
-```
+Lo scontorno delle foto gira sul tuo computer ed è gratis. Le immagini AI (anche gli sfondi) costano qualche centesimo l'una: la qualità si sceglie con `QUALITA_IMMAGINI` nel `.env`.
 
 Ogni compito si ferma comunque dopo 25 passaggi (`MAX_GIRI` in `capo.py`).

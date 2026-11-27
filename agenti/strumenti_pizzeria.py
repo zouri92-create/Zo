@@ -139,6 +139,38 @@ PACCHETTI: dict[str, list[dict]] = {
             ),
         },
         {
+            "name": "cambia_sfondo",
+            "description": (
+                "Scontorna la pizza (o il piatto) da una foto vera e la mette su uno sfondo nuovo e curato, "
+                "con un'ombra morbida e un leggero ritocco di luce e colori. La pizza resta quella della "
+                "foto: cambia solo lo sfondo. Usalo quando lo sfondo della foto è brutto o disordinato "
+                "(bancone, cartone, piastrelle, luce cattiva). Il risultato è una foto da usare poi in crea_grafica. "
+                "Tipi di sfondo: 'ai' = generato dalla descrizione (serve OPENAI_API_KEY); "
+                "'immagine' = un file in lavoro/ (es. sfondi/legno.jpg); 'tinta' = colore pieno con sfumatura."
+            ),
+            "strict": True,
+            "input_schema": _schema(
+                {
+                    "foto": {"type": "string", "description": "Foto originale in lavoro/, es. foto/diavola.jpg."},
+                    "formato": {"type": "string", "enum": list(FORMATI)},
+                    "tipo_sfondo": {"type": "string", "enum": ["ai", "immagine", "tinta"]},
+                    "sfondo": {
+                        "type": "string",
+                        "description": "Per 'ai': descrizione dettagliata di una superficie VUOTA, con la stessa "
+                                       "inquadratura della foto (es. 'vista dall'alto di un tavolo di legno scuro rustico, "
+                                       "un po' di farina, foglie di basilico e pomodorini ai bordi, centro libero, luce calda "
+                                       "laterale'). Per 'immagine': percorso del file. Per 'tinta': colore esadecimale.",
+                    },
+                    "spazio_testo": {
+                        "type": "string", "enum": ["basso", "alto", "nessuno"],
+                        "description": "Dove lasciare spazio libero per il testo di crea_grafica: la pizza si sposta dall'altra parte.",
+                    },
+                    "grandezza": {"type": "number", "description": "Quanto è grande la pizza rispetto alla larghezza, da 0.5 a 0.95 (consigliato 0.8)."},
+                },
+                ["foto", "formato", "tipo_sfondo", "sfondo", "spazio_testo", "grandezza"],
+            ),
+        },
+        {
             "name": "crea_video",
             "description": (
                 "Monta un video verticale 1080x1920 (per TikTok) a partire da una o più immagini, "
@@ -404,21 +436,119 @@ def elenca_foto(_: dict) -> str:
 # Immagini AI (OpenAI)
 # ---------------------------------------------------------------------------
 
-def genera_immagine_ai(d: dict) -> str:
+def _genera_ai(descrizione: str, verticale: bool) -> Path:
     if not os.environ.get("OPENAI_API_KEY"):
-        raise RuntimeError("Manca OPENAI_API_KEY: le immagini AI non sono configurate. Usa le foto in lavoro/foto/.")
+        raise RuntimeError("Manca OPENAI_API_KEY: le immagini AI non sono configurate. "
+                           "Usa le foto in lavoro/foto/ o uno sfondo 'tinta'/'immagine'.")
     from openai import OpenAI  # importato qui: serve solo se usi le immagini AI
 
-    dimensione = "1024x1536" if d["orientamento"] == "verticale" else "1024x1024"
     risultato = OpenAI().images.generate(
         model=os.environ.get("MODELLO_IMMAGINI", "gpt-image-1"),
-        prompt=d["descrizione"],
-        size=dimensione,
-        quality="high",
+        prompt=descrizione,
+        size="1024x1536" if verticale else "1024x1024",
+        quality=os.environ.get("QUALITA_IMMAGINI", "medium"),
     )
     uscita = _nuovo_file("ai", "png")
     uscita.write_bytes(base64.b64decode(risultato.data[0].b64_json))
+    return uscita
+
+
+def genera_immagine_ai(d: dict) -> str:
+    uscita = _genera_ai(d["descrizione"], d["orientamento"] == "verticale")
     return f"Immagine AI salvata in {_rel(uscita)}. Guardala con vedi_immagine, poi usala come foto in crea_grafica."
+
+
+# ---------------------------------------------------------------------------
+# Sfondo nuovo per le foto vere
+# ---------------------------------------------------------------------------
+
+def _scontorna(img: Image.Image) -> Image.Image:
+    """Toglie lo sfondo con rembg (gira sul tuo computer, gratis). Restituisce RGBA ritagliata."""
+    from rembg import new_session, remove  # importato qui: il modello si scarica al primo uso
+
+    global _sessione_scontorno
+    if "_sessione_scontorno" not in globals():
+        _sessione_scontorno = new_session(os.environ.get("MODELLO_SCONTORNO", "isnet-general-use"))
+    ritaglio = remove(img, session=_sessione_scontorno).convert("RGBA")
+    box = ritaglio.getchannel("A").point(lambda a: 255 if a > 20 else 0).getbbox()
+    if not box:
+        raise RuntimeError("Non ho trovato la pizza nella foto: prova con un'altra foto.")
+    return ritaglio.crop(box)
+
+
+def _ritocca(ritaglio: Image.Image) -> Image.Image:
+    """Un filo più luminosa, colori più vivi e più nitida, senza esagerare."""
+    from PIL import ImageEnhance, ImageFilter
+
+    rgb, alfa = ritaglio.convert("RGB"), ritaglio.getchannel("A")
+    rgb = ImageOps.autocontrast(rgb, cutoff=0.5)
+    rgb = ImageEnhance.Color(rgb).enhance(1.12)
+    rgb = ImageEnhance.Brightness(rgb).enhance(1.03)
+    rgb = rgb.filter(ImageFilter.UnsharpMask(radius=2, percent=60, threshold=3))
+    # Bordo un po' ammorbidito, così non sembra ritagliata con le forbici.
+    alfa = alfa.filter(ImageFilter.GaussianBlur(1.2))
+    rgb.putalpha(alfa)
+    return rgb
+
+
+def _sfondo_tinta(L: int, A: int, colore: tuple) -> Image.Image:
+    """Colore pieno con una luce morbida al centro e bordi più scuri: effetto studio fotografico."""
+    from PIL import ImageFilter
+
+    chiaro = tuple(min(255, int(c * 1.25 + 18)) for c in colore)
+    scuro = tuple(int(c * 0.55) for c in colore)
+    base = Image.new("RGB", (L, A), scuro)
+    maschera = Image.new("L", (L, A), 0)
+    ImageDraw.Draw(maschera).ellipse([-L * 0.2, A * 0.05, L * 1.2, A * 0.95], fill=255)
+    maschera = maschera.filter(ImageFilter.GaussianBlur(L * 0.18))
+    return Image.composite(Image.new("RGB", (L, A), chiaro), base, maschera)
+
+
+def cambia_sfondo(d: dict) -> str:
+    from PIL import ImageFilter
+
+    L, A = FORMATI[d["formato"]]
+    foto = ImageOps.exif_transpose(Image.open(_percorso(d["foto"]))).convert("RGB")
+    ritaglio = _ritocca(_scontorna(foto))
+
+    if d["tipo_sfondo"] == "ai":
+        sorgente = Image.open(_genera_ai(
+            d["sfondo"] + ". Superficie vuota al centro, nessun cibo al centro, nessun testo, nessuna persona, "
+            "fotografia realistica, alta qualità, food photography.", verticale=A > L))
+        sfondo = ImageOps.fit(sorgente.convert("RGB"), (L, A), method=Image.Resampling.LANCZOS)
+    elif d["tipo_sfondo"] == "immagine":
+        sorgente = ImageOps.exif_transpose(Image.open(_percorso(d["sfondo"])))
+        sfondo = ImageOps.fit(sorgente.convert("RGB"), (L, A), method=Image.Resampling.LANCZOS)
+    else:
+        sfondo = _sfondo_tinta(L, A, _colore(d["sfondo"], "#3A2A22"))
+
+    # Grandezza e posizione: lascia libera la zona del testo.
+    g = min(max(float(d["grandezza"]), 0.5), 0.95)
+    spazio = d["spazio_testo"]
+    alt_max = A * (0.62 if spazio != "nessuno" else 0.9)
+    scala = min(L * g / ritaglio.width, alt_max / ritaglio.height)
+    ritaglio = ritaglio.resize((int(ritaglio.width * scala), int(ritaglio.height * scala)), Image.Resampling.LANCZOS)
+    x = (L - ritaglio.width) // 2
+    if spazio == "basso":
+        y = int(A * 0.05)
+    elif spazio == "alto":
+        y = A - ritaglio.height - int(A * 0.05)
+    else:
+        y = (A - ritaglio.height) // 2
+
+    # Ombra morbida sotto la pizza.
+    ombra = Image.new("RGBA", (L, A), (0, 0, 0, 0))
+    sagoma = ritaglio.getchannel("A").point(lambda a: int(a * 0.55))
+    ombra.paste((0, 0, 0, 255), (x + int(L * 0.012), y + int(L * 0.025)), sagoma)
+    ombra = ombra.filter(ImageFilter.GaussianBlur(L * 0.022))
+
+    risultato = Image.alpha_composite(sfondo.convert("RGBA"), ombra)
+    risultato.alpha_composite(ritaglio, (x, y))
+    CARTELLA_FOTO.mkdir(parents=True, exist_ok=True)
+    uscita = _nuovo_file("foto-sfondo", "png")
+    risultato.convert("RGB").save(uscita, optimize=True)
+    return (f"Foto con sfondo nuovo salvata in {_rel(uscita)} ({L}x{A}). Guardala con vedi_immagine: "
+            "se va bene usala come 'foto' in crea_grafica, con posizione_testo uguale a spazio_testo.")
 
 
 # ---------------------------------------------------------------------------
@@ -548,6 +678,7 @@ ESECUTORI = {
     "vedi_immagine": vedi_immagine,
     "crea_grafica": crea_grafica,
     "crea_video": crea_video,
+    "cambia_sfondo": cambia_sfondo,
     "genera_immagine_ai": genera_immagine_ai,
     "pubblica_facebook": pubblica_facebook,
     "invia_bozza_tiktok": invia_bozza_tiktok,
