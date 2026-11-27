@@ -6,8 +6,11 @@ Serve una chiave API in ANTHROPIC_API_KEY (oppure un profilo `ant auth login`).
 - Il capo parla con te, divide il lavoro e lo assegna agli specialisti.
 - Se manca lo specialista adatto, il capo lo crea (nome, scopo, istruzioni)
   e lo salva in agenti.json, così resta disponibile anche le volte successive.
-- Gli specialisti possono cercare sul web e leggere/scrivere file
-  nella cartella lavoro/.
+- Gli specialisti possono avere strumenti in più (vedi strumenti_pizzeria.py):
+  ricerca web, grafica, immagini AI, Facebook, TikTok. Leggono e scrivono
+  file nella cartella lavoro/.
+- Le chiavi (Anthropic, OpenAI, Facebook, TikTok) vanno nel file .env
+  (copia .env.esempio).
 """
 
 from __future__ import annotations
@@ -20,10 +23,29 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-import anthropic
-
 CARTELLA = Path(__file__).resolve().parent
+
+
+def carica_env() -> None:
+    """Legge le righe NOME=valore del file .env (senza sovrascrivere variabili già impostate)."""
+    f = CARTELLA / ".env"
+    if not f.exists():
+        return
+    for riga in f.read_text(encoding="utf-8").splitlines():
+        riga = riga.strip()
+        if riga and not riga.startswith("#") and "=" in riga:
+            k, v = riga.split("=", 1)
+            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+
+
+carica_env()
+
+import anthropic  # noqa: E402  (dopo carica_env, così legge ANTHROPIC_API_KEY dal .env)
+
+import strumenti_pizzeria as extra  # noqa: E402
+
 FILE_AGENTI = CARTELLA / "agenti.json"
+FILE_AGENTI_INIZIALI = CARTELLA / "agenti_iniziali.json"
 CARTELLA_LAVORO = CARTELLA / "lavoro"
 
 # Modelli: cambiali con le variabili d'ambiente se vuoi spendere meno,
@@ -41,9 +63,21 @@ blocco_archivio = threading.Lock()  # più agenti possono lavorare in parallelo
 # ---------------------------------------------------------------------------
 
 def carica_agenti() -> dict:
+    """agenti.json è la tua squadra. Al primo avvio parte dagli agenti già pronti."""
     if FILE_AGENTI.exists():
         return json.loads(FILE_AGENTI.read_text(encoding="utf-8"))
+    if FILE_AGENTI_INIZIALI.exists():
+        agenti = json.loads(FILE_AGENTI_INIZIALI.read_text(encoding="utf-8"))
+        salva_agenti(agenti)
+        return agenti
     return {}
+
+
+def pacchetti_di(agente: dict) -> list[str]:
+    pacchetti = list(agente.get("strumenti", []))
+    if agente.get("ricerca_web") and "web" not in pacchetti:  # vecchio formato
+        pacchetti.append("web")
+    return pacchetti
 
 
 def salva_agenti(agenti: dict) -> None:
@@ -188,19 +222,33 @@ def esegui_strumento_file(nome: str, dati: dict):
         return f"Errore: {e}", True
 
 
+def esegui_strumento_specialista(nome: str, dati: dict):
+    if nome in extra.NOMI_STRUMENTI:
+        return extra.esegui(nome, dati)
+    return esegui_strumento_file(nome, dati)
+
+
 def esegui_specialista(nome: str, compito: str):
     agenti = carica_agenti()
     agente = agenti.get(nome)
     if agente is None:
         return f"Non esiste un agente chiamato '{nome}'. Crealo prima con crea_agente.", True
 
-    strumenti = list(STRUMENTI_FILE)
-    if agente.get("ricerca_web"):
+    pacchetti = pacchetti_di(agente)
+    strumenti = list(STRUMENTI_FILE) + extra.strumenti_di(pacchetti)
+    if "web" in pacchetti:
         strumenti.append(STRUMENTO_WEB)
+
+    # File di contesto (es. il profilo della pizzeria) letti ogni volta, così sono sempre aggiornati.
+    contesto = ""
+    for nome_file in agente.get("contesto", []):
+        p = CARTELLA / nome_file
+        if p.exists():
+            contesto += f"\n\n<{nome_file}>\n{p.read_text(encoding='utf-8')}\n</{nome_file}>"
 
     sistema = (
         f"Sei '{nome}', un agente specializzato. Il tuo ambito: {agente['descrizione']}\n\n"
-        f"{agente['istruzioni']}\n\n"
+        f"{agente['istruzioni']}{contesto}\n\n"
         "Ricevi un compito dall'agente capo. Portalo a termine da solo, senza fare domande: "
         "se manca un'informazione, fai un'ipotesi ragionevole e dichiarala. "
         "Alla fine rispondi con un resoconto chiaro di cosa hai fatto e del risultato. "
@@ -210,7 +258,7 @@ def esegui_specialista(nome: str, compito: str):
     messaggi = [{"role": "user", "content": compito}]
     esito = ciclo_agente(
         MODELLO_SPECIALISTI, sistema, strumenti, messaggi,
-        esegui_strumento_file, effort="medium", etichetta=nome,
+        esegui_strumento_specialista, effort="medium", etichetta=nome,
     )
     print(f"  ✓ {nome} ha finito.", flush=True)
     return esito, False
@@ -244,9 +292,21 @@ STRUMENTI_CAPO = [
                     "description": "Istruzioni dettagliate per l'agente: competenze, metodo di lavoro, "
                                    "formato del risultato, cosa evitare.",
                 },
-                "ricerca_web": {"type": "boolean", "description": "true se gli serve cercare informazioni sul web."},
+                "strumenti": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": extra.NOMI_PACCHETTI},
+                    "description": "Strumenti in più: web (ricerca), grafica (impagina foto e testi, "
+                                   "monta video), immagini_ai (genera immagini), facebook (pubblica sulla "
+                                   "Pagina, con conferma), tiktok (manda video in bozza, con conferma). "
+                                   "Dai solo quelli che servono.",
+                },
+                "contesto": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "File da fargli leggere sempre, es. [\"pizzeria.md\"]. Può essere vuoto.",
+                },
             },
-            "required": ["nome", "descrizione", "istruzioni", "ricerca_web"],
+            "required": ["nome", "descrizione", "istruzioni", "strumenti", "contesto"],
             "additionalProperties": False,
         },
     },
@@ -291,7 +351,8 @@ def esegui_strumento_capo(nome: str, dati: dict):
             if not agenti:
                 return "Non ci sono ancora agenti specializzati.", False
             righe = [
-                f"- {n}: {a['descrizione']}" + (" (ricerca web)" if a.get("ricerca_web") else "")
+                f"- {n}: {a['descrizione']}"
+                + (f" [strumenti: {', '.join(pacchetti_di(a))}]" if pacchetti_di(a) else "")
                 for n, a in agenti.items()
             ]
             return "\n".join(righe), False
@@ -305,7 +366,8 @@ def esegui_strumento_capo(nome: str, dati: dict):
                 agenti[dati["nome"]] = {
                     "descrizione": dati["descrizione"],
                     "istruzioni": dati["istruzioni"],
-                    "ricerca_web": dati["ricerca_web"],
+                    "strumenti": [p for p in dati["strumenti"] if p in extra.NOMI_PACCHETTI],
+                    "contesto": dati["contesto"],
                 }
                 salva_agenti(agenti)
             print(f"  ★ Agente {'aggiornato' if esisteva else 'creato'}: {dati['nome']}", flush=True)
@@ -342,6 +404,10 @@ Il tuo lavoro:
    il risultato e passalo nel compito successivo (o indica il file in lavoro/ da leggere).
 5. Controllare i risultati: se qualcosa non va, rimanda il compito con indicazioni precise.
 6. Rispondere all'utente con una sintesi chiara del risultato finale.
+
+Sui social: i post si pubblicano solo dopo la conferma del titolare, che viene chiesta
+automaticamente dallo strumento di pubblicazione. Non dire mai che un post è uscito se lo
+specialista non lo conferma nel suo resoconto.
 
 Per domande semplici, rispondi direttamente senza coinvolgere altri agenti.
 Se la richiesta dell'utente è ambigua su un punto che cambia davvero il risultato, chiedi prima."""

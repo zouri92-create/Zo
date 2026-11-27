@@ -1,1 +1,4 @@
 anthropic
+requests
+Pillow
+openai
