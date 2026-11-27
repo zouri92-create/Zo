@@ -6,8 +6,9 @@ Serve una chiave API in ANTHROPIC_API_KEY (oppure un profilo `ant auth login`).
 - Il capo parla con te, divide il lavoro e lo assegna agli specialisti.
 - Se manca lo specialista adatto, il capo lo crea (nome, scopo, istruzioni)
   e lo salva in agenti.json, così resta disponibile anche le volte successive.
-- Gli specialisti possono avere strumenti in più (vedi strumenti_pizzeria.py):
-  ricerca web, grafica, immagini AI, Facebook, TikTok. Leggono e scrivono
+- Gli specialisti possono avere strumenti in più (vedi registro_strumenti.py):
+  ricerca web, grafica, immagini AI, Facebook, TikTok, Google Ads, Analytics,
+  Search Console e la scheda Google del locale. Leggono e scrivono
   file nella cartella lavoro/.
 - Le chiavi (Anthropic, OpenAI, Facebook, TikTok) vanno nel file .env
   (copia .env.esempio).
@@ -16,6 +17,7 @@ Serve una chiave API in ANTHROPIC_API_KEY (oppure un profilo `ant auth login`).
 from __future__ import annotations
 
 import json
+from datetime import date
 import os
 import re
 import sys
@@ -42,7 +44,7 @@ carica_env()
 
 import anthropic  # noqa: E402  (dopo carica_env, così legge ANTHROPIC_API_KEY dal .env)
 
-import strumenti_pizzeria as extra  # noqa: E402
+import registro_strumenti as extra  # noqa: E402
 
 FILE_AGENTI = CARTELLA / "agenti.json"
 FILE_AGENTI_INIZIALI = CARTELLA / "agenti_iniziali.json"
@@ -249,6 +251,7 @@ def esegui_specialista(nome: str, compito: str):
     sistema = (
         f"Sei '{nome}', un agente specializzato. Il tuo ambito: {agente['descrizione']}\n\n"
         f"{agente['istruzioni']}{contesto}\n\n"
+        f"Oggi è {date.today().isoformat()}.\n\n"
         "Ricevi un compito dall'agente capo. Portalo a termine da solo, senza fare domande: "
         "se manca un'informazione, fai un'ipotesi ragionevole e dichiarala. "
         "Alla fine rispondi con un resoconto chiaro di cosa hai fatto e del risultato. "
@@ -297,7 +300,10 @@ STRUMENTI_CAPO = [
                     "items": {"type": "string", "enum": extra.NOMI_PACCHETTI},
                     "description": "Strumenti in più: web (ricerca), grafica (impagina foto e testi, "
                                    "monta video), immagini_ai (genera immagini), facebook (pubblica sulla "
-                                   "Pagina, con conferma), tiktok (manda video in bozza, con conferma). "
+                                   "Pagina, con conferma), tiktok (manda video in bozza, con conferma), "
+                                   "google_ads (legge le campagne), google_analytics (visite al sito), "
+                                   "search_console (ricerche Google verso il sito), google_business "
+                                   "(scheda Maps: statistiche, recensioni, risposte e post con conferma). "
                                    "Dai solo quelli che servono.",
                 },
                 "contesto": {
@@ -404,6 +410,9 @@ Il tuo lavoro:
    il risultato e passalo nel compito successivo (o indica il file in lavoro/ da leggere).
 5. Controllare i risultati: se qualcosa non va, rimanda il compito con indicazioni precise.
 6. Rispondere all'utente con una sintesi chiara del risultato finale.
+
+Marketing: tutto ciò che riguarda il marketing del locale (social, grafiche, pubblicità, Google Ads,
+scheda Google e recensioni, analisi dei risultati, idee e piani) va a marketing-pizzeria, se esiste.
 
 Sui social: i post si pubblicano solo dopo la conferma del titolare, che viene chiesta
 automaticamente dallo strumento di pubblicazione. Non dire mai che un post è uscito se lo

@@ -2,3 +2,8 @@ anthropic
 requests
 Pillow
 openai
+google-auth
+google-auth-oauthlib
+google-ads
+google-analytics-data
+google-api-python-client

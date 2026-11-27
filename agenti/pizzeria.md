@@ -3,6 +3,10 @@
 <!-- Compila questo file: l'agente social lo legge ogni volta prima di lavorare.
      Più è preciso, migliori sono i post. Le righe tra <!-- --> sono note per te. -->
 
+## Lingua
+- Lingua dei post e dei testi per i clienti: **tedesco**
+- Paese / regione (per le espressioni locali): 
+
 ## Chi siamo
 - Nome: 
 - Città e zona: 
@@ -33,6 +37,13 @@
 - Colore principale: #B3261E
 - Colore secondario: #F2C14E
 - Stile delle immagini: 
+
+## Pubblicità e Google
+<!-- Serve all'agente per giudicare Google Ads e la scheda Google. -->
+- Budget mensile per la pubblicità: 
+- Zona da cui arrivano i clienti (km o quartieri): 
+- Obiettivo principale: chiamate / ordini online / persone in negozio
+- Sito web (se c'è): 
 
 ## Da evitare
 <!-- Es. niente prezzi nei post, niente foto di pizze non nostre, nessuna parolaccia. -->
