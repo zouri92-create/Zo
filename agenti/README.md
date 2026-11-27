@@ -4,7 +4,7 @@ Un agente che coordina una squadra di agenti specializzati e, quando serve, ne c
 
 ```
 Tu ──► Capo ──┬─► crea_agente      (nuovo specialista, salvato in agenti.json)
-              ├─► assegna_compito  ──► marketing-pizzeria  (social, Google Ads, scheda Google…)
+              ├─► assegna_compito  ──► gestore-pizzeria  (marketing, Google, menu, costi, fornitori…)
               └─► assegna_compito  ──► altro specialista  (in parallelo)
 ```
 
@@ -14,9 +14,9 @@ Tu ──► Capo ──┬─► crea_agente      (nuovo specialista, salvato i
   `google_ads`, `google_analytics`, `search_console`, `google_business`. Si passano i file nella cartella `lavoro/`.
 - La squadra è salvata in `agenti.json` (al primo avvio viene creata da `agenti_iniziali.json`). Puoi modificarla a mano.
 
-## Il primo specialista: `marketing-pizzeria`
+## Il primo specialista: `gestore-pizzeria`
 
-Si occupa di tutto il marketing della pizzeria. **Tutto ciò che vedono i clienti è in tedesco**: grafiche, post, hashtag, risposte alle recensioni. Con te parla in italiano e sotto ogni testo tedesco mette la traduzione.
+Si occupa di tutto ciò che riguarda la pizzeria: marketing, menu, costi e margini, allergeni, fornitori e scorte, turni, HACCP, contabilità, burocrazia tedesca, clienti e strategia. **Tutto ciò che vedono i clienti è in tedesco**: grafiche, post, hashtag, risposte alle recensioni. Con te parla in italiano e sotto ogni testo tedesco mette la traduzione.
 
 1. **Compila `pizzeria.md`**: nome, menu e prezzi, orari, telefono, tono di voce, colori, regione (per il tedesco locale), budget e zona dei clienti. L'agente lo legge ogni volta e non inventa prezzi né offerte.
 2. **Metti le foto delle tue pizze** in `lavoro/foto/` (jpg o png). Sono la base migliore: le pizze vere.

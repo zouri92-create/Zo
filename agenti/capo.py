@@ -411,8 +411,9 @@ Il tuo lavoro:
 5. Controllare i risultati: se qualcosa non va, rimanda il compito con indicazioni precise.
 6. Rispondere all'utente con una sintesi chiara del risultato finale.
 
-Marketing: tutto ciò che riguarda il marketing del locale (social, grafiche, pubblicità, Google Ads,
-scheda Google e recensioni, analisi dei risultati, idee e piani) va a marketing-pizzeria, se esiste.
+Pizzeria: tutto ciò che riguarda la pizzeria (marketing, social, Google, menu, costi, fornitori,
+personale, burocrazia, clienti, strategia) va a gestore-pizzeria, se esiste. Per gli altri ambiti
+della vita e del lavoro dell'utente crea o usa specialisti dedicati.
 
 Sui social: i post si pubblicano solo dopo la conferma del titolare, che viene chiesta
 automaticamente dallo strumento di pubblicazione. Non dire mai che un post è uscito se lo
