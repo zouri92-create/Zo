@@ -170,6 +170,14 @@ details > p { padding: 0 4px 16px; color: var(--muted) }
 .today article { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); padding: 16px 18px; display: flex; flex-direction: column; gap: 8px }
 .links-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px }
 .links-row a { justify-content: center }
+.steps { margin: 4px 0 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; counter-reset: st }
+.steps li { counter-increment: st; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap }
+.steps li::before { content: counter(st); flex: none; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--line); display: inline-grid; place-items: center; font-size: .75rem; font-weight: 700; color: var(--muted) }
+.steps li.on::before { content: "✓"; background: var(--teal); border-color: var(--teal); color: var(--paper) }
+.steps li.on { color: var(--muted) }
+.step-hint { flex-basis: 100%; padding-left: 32px; margin-top: -4px }
+.hero .steps li::before { border-color: rgba(255,255,255,.4) }
+section.block, #reading { scroll-margin-top: 16px }
 </style>
 
 <div class="wrap">
@@ -184,7 +192,7 @@ details > p { padding: 0 4px 16px; color: var(--muted) }
 <nav class="tabs" aria-label="Sezioni">
   <div class="in">
     <a href="#piano" data-tab="piano"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Il tuo piano</a>
-    <a href="#settimana" data-tab="settimana"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>Settimana</a>
+    <a href="#settimana" data-tab="settimana"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>Lezione</a>
     <a href="#biblioteca" data-tab="biblioteca"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg>Biblioteca</a>
     <a href="#impostazioni" data-tab="impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Impostazioni</a>
   </div>

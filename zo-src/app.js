@@ -69,7 +69,7 @@ const BOOK = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke
 
 /* ---------- storage: everything stays in this browser, works without internet ---------- */
 const KEY = "zo-offline-v1";
-let S = { order: "essenziale", seed: 0, current: null, startedAt: {}, done: {}, quiz: {}, ex: {}, rev: {}, journal: [], nome: "" };
+let S = { order: "essenziale", pace: 2, seed: 0, current: null, startedAt: {}, done: {}, quiz: {}, ex: {}, rev: {}, read: {}, days: {}, journal: [], nome: "" };
 function load() {
   let st = null;
   try { st = JSON.parse(localStorage.getItem(KEY) || "null"); } catch {}
@@ -83,7 +83,8 @@ function load() {
 }
 function normalize() {
   S.journal = Array.isArray(S.journal) ? S.journal : [];
-  for (const k of ["startedAt", "done", "quiz", "ex", "rev"]) if (!S[k] || typeof S[k] !== "object") S[k] = {};
+  for (const k of ["startedAt", "done", "quiz", "ex", "rev", "read", "days"]) if (!S[k] || typeof S[k] !== "object") S[k] = {};
+  if (![1, 2, 3].includes(S.pace)) S.pace = 2;
   for (const slug of Object.keys(S.done)) if (BY[slug] && !S.rev[slug]) S.rev[slug] = { box: 0, due: addDays(today(), 1), n: 0 };
 }
 let storageOk = true;
@@ -124,7 +125,65 @@ function nextDue() { const d = Object.entries(S.rev).filter(([s]) => BY[s]).map(
 function grade(slug, ok) {
   const r = S.rev[slug]; if (!r) return;
   r.box = ok ? Math.min(r.box + 1, INTERVALS.length - 1) : 0;
-  r.due = addDays(today(), INTERVALS[r.box]); r.n = (r.n || 0) + 1; save();
+  r.due = addDays(today(), INTERVALS[r.box]); r.n = (r.n || 0) + 1; markActive(); save();
+}
+
+/* ---------- giorni di fila ---------- */
+function markActive() { S.days[today()] = 1; const keys = Object.keys(S.days).sort(); while (keys.length > 400) delete S.days[keys.shift()]; }
+function streak() {
+  let d = S.days[today()] ? today() : addDays(today(), -1), n = 0;
+  while (S.days[d]) { n++; d = addDays(d, -1); }
+  return n;
+}
+
+/* ---------- i 5 passi per padroneggiare un modello ---------- */
+const STEPS = [
+  { label: "Letto", hint: "Leggi la lezione", sec: "reading" },
+  { label: "Esercizio fatto", hint: "Fai uno dei tre esercizi", sec: "exs" },
+  { label: "Quiz superato", hint: "Rispondi bene a tutte le domande della verifica", sec: "quizSec" },
+  { label: "Applicato", hint: "Applicalo a una tua situazione e salvalo nel diario", sec: "apply" },
+  { label: "Ricordato nel tempo", hint: "Ricordalo in 3 ripassi di fila: torna da solo nel ripasso", sec: null },
+];
+const daysTarget = () => ({ 1: 7, 2: 4, 3: 2 })[S.pace] || 4;
+function mastery(slug) {
+  const q = S.quiz[slug];
+  return [
+    !!S.read[slug],
+    exDone(slug) > 0,
+    !!(q && q.score === q.total),
+    S.journal.some((e) => e.slug === slug || (e.modelli || []).includes(slug)),
+    (S.rev[slug]?.box || 0) >= 3,
+  ];
+}
+const mastered = (slug) => mastery(slug).every(Boolean);
+const stepsDone = (slug) => mastery(slug).filter(Boolean).length;
+let pendingScroll = null;
+function goTo(slug, sec) {
+  pendingScroll = sec;
+  if (location.hash === "#m-" + slug) route(); else location.hash = "m-" + slug;
+}
+
+/* ---------- domande «Quale modello?» costruite dagli esempi e dai segnali delle schede ---------- */
+function studiedPool() { return MODELS.filter((x) => S.done[x.slug] || S.rev[x.slug] || S.read[x.slug]); }
+function distractors(m, key) {
+  let pool = studiedPool().filter((x) => x !== m);
+  if (pool.length < 6) pool = [...new Set([...pool, ...ESSENTIAL.filter((x) => x !== m), ...MODELS.filter((x) => x.cat === m.cat && x !== m)])];
+  return shuffled(pool, hash(m.slug + key)).slice(0, 3);
+}
+const mask = (text, m) => String(text).split(m.title).join("questo modello");
+function whichQuestions(m) {
+  const out = [];
+  (m.es || []).forEach(([area, text], k) => out.push({ kind: "which", q: [`${area}. «${mask(text, m)}» Quale modello descrive meglio questa situazione?`,
+    [m.title, ...distractors(m, "e" + k).map((x) => x.title)], 0, `È «${m.title}»: ${m.tag}`], i: "e" + k }));
+  (m.ri || []).forEach(([sig, text], k) => out.push({ kind: "which", q: [`Segnale: «${sig}». ${mask(text, m)} Quale modello ti aiuta a riconoscerlo?`,
+    [m.title, ...distractors(m, "r" + k).map((x) => x.title)], 0, `È «${m.title}»: ${m.tag}`], i: "r" + k }));
+  return out;
+}
+/* Per il ripasso: domande sul contenuto e domande «Quale modello?», alternate. */
+function reviewQuestions(m) {
+  const own = m.qz.map((q, i) => ({ kind: "own", q, i })); const w = whichQuestions(m); const out = [];
+  for (let i = 0; i < Math.max(own.length, w.length); i++) { if (own[i]) out.push(own[i]); if (w[i]) out.push(w[i]); }
+  return out;
 }
 
 /* ---------- views ---------- */
@@ -154,27 +213,33 @@ function renderPlan() {
   setTop();
   const m = currentModel(); const done = doneCount(); const pct = Math.round(done / MODELS.length * 100);
   if (m && !S.startedAt[m.slug]) { S.startedAt[m.slug] = today(); save(); }
-  const day = m ? Math.min(7, daysSince(S.startedAt[m.slug]) + 1) : 0;
+  const target = daysTarget(); const day = m ? daysSince(S.startedAt[m.slug]) + 1 : 0;
   const order = planOrder(); const next = order.filter((x) => !S.done[x.slug] && x !== m).slice(0, 4);
-  const hello = S.nome ? `Ciao ${esc(S.nome)}.` : "Un modello mentale a settimana.";
+  const hello = S.nome ? `Ciao ${esc(S.nome)}.` : "Impara un modello alla volta, e usalo.";
   const exI = (day - 1) % 3; const exChecked = m && (S.ex[m.slug] || [])[exI];
+  const ms = m ? mastery(m.slug) : []; const nextStep = ms.findIndex((x) => !x);
+  const st = streak(); const nMastered = MODELS.filter((x) => mastered(x.slug)).length;
   const due = dueList(); const nd = nextDue();
   app.innerHTML = `<div class="stack">
-    <p class="muted">${hello} ${done ? `Hai completato ${done} modelli su ${MODELS.length}.` : `La biblioteca contiene ${MODELS.length} modelli in ${Object.keys(CATS).length} aree.`}</p>
+    <p class="muted">${hello} ${done ? `Hai completato ${done} modelli su ${MODELS.length}.` : `La biblioteca contiene ${MODELS.length} modelli in ${Object.keys(CATS).length} aree.`}${st ? ` <strong style="color:var(--orange)">${st} ${st === 1 ? "giorno" : "giorni"} di fila</strong>.` : ""}</p>
     ${m ? `<div class="hero">
-      <span class="eyebrow">Settimana ${done + 1} · ${esc(SHORT[m.cat])}${ESSENTIAL_SET.has(m.slug) && S.order === "essenziale" ? ` · essenziale ${ESSENTIAL.indexOf(m) + 1} di ${ESSENTIAL.length}` : ""}</span>
+      <span class="eyebrow">Modello ${done + 1} del percorso · ${esc(SHORT[m.cat])}${ESSENTIAL_SET.has(m.slug) && S.order === "essenziale" ? ` · essenziale ${ESSENTIAL.indexOf(m) + 1} di ${ESSENTIAL.length}` : ""}</span>
       <h1>${esc(m.title)}</h1>
       <p>${esc(m.tag)}</p>
-      <div class="days" aria-label="Giorno ${day} di 7">${[1,2,3,4,5,6,7].map((i) => `<i class="${i <= day ? "on" : ""}"></i>`).join("")}</div>
-      <p class="small">Giorno ${day} di 7 · esercizi fatti ${exDone(m.slug)} di 3${day >= 7 ? " · la settimana è finita: se ti senti pronto, segnalo come completato" : ""}</p>
-      <div class="row"><button id="openWeek">Apri la lezione</button>${day >= 7 ? `<button class="alt" id="finishWeek">Segna come completato</button>` : ""}</div>
+      <div class="days" aria-label="Passi fatti ${stepsDone(m.slug)} di 5">${ms.map((x) => `<i class="${x ? "on" : ""}"></i>`).join("")}</div>
+      <p class="small">Passi fatti ${stepsDone(m.slug)} di 5 · giorno ${day} di ${target} (ritmo: ${S.pace} ${S.pace === 1 ? "modello" : "modelli"} a settimana)${day >= target || nextStep >= 4 ? " · se ti senti pronto, passa al prossimo" : ""}</p>
+      <div class="row"><button id="openWeek">Apri la lezione</button>${day >= target || nextStep === -1 || nextStep >= 4 ? `<button class="alt" id="finishWeek">Passa al prossimo modello</button>` : ""}</div>
     </div>` : `<div class="hero"><span class="eyebrow">Percorso completato</span><h1>Hai studiato tutti i ${MODELS.length} modelli</h1><p>Ripassali con i quiz o rileggi le schede nella Biblioteca.</p></div>`}
   </div>
   ${m ? `<section class="block" style="margin-top:18px">
     <h2>Oggi</h2>
     <div class="today">
-      <article><span class="eyebrow">Esercizio del giorno</span><p>${esc(m.ex[exI])}</p>
-        <div class="row"><button id="exToday" class="${exChecked ? "" : "primary"}">${exChecked ? "Fatto ✓" : "Segna come fatto"}</button></div></article>
+      <article><span class="eyebrow">Il tuo prossimo passo</span>
+        ${nextStep === -1 ? `<p>Hai fatto tutti e 5 i passi: questo modello è tuo. Passa al prossimo quando vuoi.</p>`
+          : nextStep === 4 ? `<p>Hai fatto i primi 4 passi. Ora il modello torna da solo nel ripasso: ricordalo 3 volte di fila e sarà padroneggiato. Intanto puoi passare al prossimo.</p>`
+          : nextStep === 1 ? `<p>${esc(m.ex[exI])}</p><div class="row"><button id="exToday" class="${exChecked ? "" : "primary"}">${exChecked ? "Fatto ✓" : "Ho fatto questo esercizio"}</button></div>`
+          : `<p>${esc(STEPS[nextStep].hint)}.</p><div class="row"><button class="primary" id="goStep">${["Leggi la lezione", "", "Fai la verifica", "Applicalo ora"][nextStep]}</button></div>`}
+        <ol class="steps">${STEPS.map((x, i) => `<li class="${ms[i] ? "on" : ""}">${esc(x.label)}</li>`).join("")}</ol></article>
       <article><span class="eyebrow">Domanda da farti oggi</span><p style="font-family:var(--f-display);font-size:1.3rem;line-height:1.3">${esc(m.q[exI])}</p></article>
     </div>
   </section>` : ""}
@@ -194,24 +259,25 @@ function renderPlan() {
   <section class="block">
     <div class="row" style="justify-content:space-between"><h2>Il tuo progresso</h2><span class="muted" style="font-variant-numeric:tabular-nums">${pct}%</span></div>
     <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="${MODELS.length}" aria-valuenow="${done}"><i style="width:${pct}%"></i></div>
+    <p class="small muted">Completati ${done} · padroneggiati ${nMastered}, cioè con tutti e 5 i passi fatti.</p>
     <div class="cats">${Object.keys(CATS).map((c) => { const tot = MODELS.filter((x) => x.cat === c).length; const d = MODELS.filter((x) => x.cat === c && S.done[x.slug]).length;
       return `<span>${esc(CATS[c])}</span><span>${d}/${tot}</span><div class="bar"><i style="width:${Math.round(d / tot * 100)}%"></i></div>`; }).join("")}</div>
   </section>
-  ${next.length ? `<section class="block"><h2>Prossime settimane</h2><div class="list">${next.map((x, i) => itemHTML(x, `Settimana ${done + 2 + i} · ${SHORT[x.cat]}`)).join("")}</div>
+  ${next.length ? `<section class="block"><h2>I prossimi modelli</h2><div class="list">${next.map((x, i) => itemHTML(x, `Modello ${done + 2 + i} · ${SHORT[x.cat]}`)).join("")}</div>
     <p class="small muted">L'ordine si cambia in Impostazioni. Puoi anche scegliere un modello dalla Biblioteca.</p></section>` : ""}`;
   $("#openWeek")?.addEventListener("click", () => { location.hash = "m-" + m.slug; });
   $("#finishWeek")?.addEventListener("click", () => complete(m));
-  $("#exToday")?.addEventListener("click", () => { const a = S.ex[m.slug] || [false, false, false]; a[exI] = !a[exI]; S.ex[m.slug] = a; save(); renderPlan(); });
+  $("#exToday")?.addEventListener("click", () => { const a = S.ex[m.slug] || [false, false, false]; a[exI] = !a[exI]; S.ex[m.slug] = a; markActive(); save(); renderPlan(); });
+  $("#goStep")?.addEventListener("click", () => goTo(m.slug, STEPS[nextStep].sec));
 }
 
 function itemHTML(m, eyebrow) {
-  const q = S.quiz[m.slug]; const cur = currentModel()?.slug === m.slug; const e = exDone(m.slug);
+  const cur = currentModel()?.slug === m.slug;
   const pills = [
     S.done[m.slug] ? `<span class="pill ok">Completato</span>` : "",
     ESSENTIAL_SET.has(m.slug) ? `<span class="pill">Essenziale</span>` : "",
-    cur ? `<span class="pill orange">Questa settimana</span>` : "",
-    e ? `<span class="pill">Esercizi ${e}/3</span>` : "",
-    q ? `<span class="pill">Quiz ${q.score}/${q.total}</span>` : "",
+    cur ? `<span class="pill orange">In corso</span>` : "",
+    mastered(m.slug) ? `<span class="pill ok">Padroneggiato</span>` : stepsDone(m.slug) ? `<span class="pill">Passi ${stepsDone(m.slug)}/5</span>` : "",
   ].join("");
   return `<a class="item" href="#m-${m.slug}">
     <span class="eyebrow">${esc(eyebrow || CATS[m.cat])}</span>
@@ -284,7 +350,9 @@ function renderModel(m) {
     `<button class="iconbtn" id="doneTop" aria-label="${done ? "Completato" : "Segna come completato"}" title="${done ? "Completato" : "Segna come completato"}" style="${done ? "background:var(--teal);color:var(--paper);border-color:var(--teal)" : ""}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>`);
   bindBack();
   $("#doneTop").onclick = () => done ? undoComplete(m) : complete(m);
-  const eyebrow = isCur ? `Settimana ${doneCount() + 1} · ${CATS[m.cat]}` : `${m.n} · ${CATS[m.cat]}`;
+  const eyebrow = isCur ? `In corso · ${CATS[m.cat]}` : `${m.n} · ${CATS[m.cat]}`;
+  if (!S.read[m.slug]) { S.read[m.slug] = today(); markActive(); save(); }
+  const ms = mastery(m.slug);
   const ex = S.ex[m.slug] || [false, false, false];
   const siblings = MODELS.filter((x) => x.cat === m.cat && x !== m);
   const pos = siblings.findIndex((x) => x.n > m.n); const related = [...siblings.slice(pos < 0 ? 0 : pos), ...siblings].slice(0, 3);
@@ -298,11 +366,13 @@ function renderModel(m) {
       <button data-mode="approfondita" aria-pressed="${view.mode === "approfondita"}">Approfondita</button>
     </div>
     <div class="idea">${esc(m.tag)}</div>
-    <div class="prose" id="reading"></div>
+    <div class="sheet"><span class="eyebrow">Il tuo percorso con questo modello · ${ms.filter(Boolean).length} di 5</span>
+      <ol class="steps">${STEPS.map((x, i) => `<li class="${ms[i] ? "on" : ""}">${x.sec && !ms[i] ? `<a href="#" data-goto="${x.sec}">${esc(x.label)}</a>` : esc(x.label)}${!ms[i] ? `<span class="muted small step-hint">${esc(x.hint)}</span>` : ""}</li>`).join("")}</ol></div>
+    <div class="prose" id="reading" style="scroll-margin-top:16px"></div>
   </div>
   <section class="block" style="margin-top:18px"><h2>Come riconoscerlo</h2><div>${m.ri.map(([a, b]) => `<details><summary>${esc(a)}</summary><p>${esc(b)}</p></details>`).join("")}</div></section>
   <section class="block"><h2>Nella vita di tutti i giorni</h2><div class="ex">${m.es.map(([a, b]) => `<article><span class="eyebrow">${esc(a)}</span><p>${esc(b)}</p></article>`).join("")}</div></section>
-  <section class="block"><div class="challenge"><span class="eyebrow">Esercizi della settimana</span><p class="small">Fanne uno ogni due giorni. Spunta quelli che hai fatto.</p>
+  <section class="block" id="exs"><div class="challenge"><span class="eyebrow">Esercizi</span><p class="small">Basta farne uno per il passo «Esercizio fatto». Fai gli altri quando ti capita la situazione giusta.</p>
     <div class="ex-list">${m.ex.map((t, i) => `<label for="ex${i}" class="${ex[i] ? "done" : ""}"><input type="checkbox" id="ex${i}" data-ex="${i}" ${ex[i] ? "checked" : ""}><span>${esc(t)}</span></label>`).join("")}</div></div></section>
   <section class="block"><h2>Domande da farti quando decidi</h2><div class="prose"><ul>${m.q.map((d) => `<li>${esc(d)}</li>`).join("")}</ul></div>
     <h3 style="margin-top:8px">L'errore da evitare</h3><p class="muted">${esc(m.er)}</p></section>
@@ -314,14 +384,14 @@ function renderModel(m) {
       <label class="field" for="wsAct">Cosa farò, in concreto<textarea id="wsAct" style="min-height:70px" placeholder="Il primo passo e quando lo faccio"></textarea></label>
       <div><button class="primary" id="wsSave">Salva nel diario</button></div>
     </div></section>
-  <section class="block"><h2>Verifica veloce</h2>${quizHTML(qItems, "")}<p class="small muted" id="quizScore">${S.quiz[m.slug] ? `Ultimo risultato: ${S.quiz[m.slug].score} su ${S.quiz[m.slug].total}.` : ""}</p></section>
+  <section class="block" id="quizSec"><h2>Verifica veloce</h2>${quizHTML(qItems, "")}<p class="small muted" id="quizScore">${S.quiz[m.slug] ? `Ultimo risultato: ${S.quiz[m.slug].score} su ${S.quiz[m.slug].total}.` : ""}</p></section>
   <section class="block"><h2>Diario di questo modello</h2><div class="stack" id="entries"></div>
     <label class="field" for="note">Dove l'hai visto in azione oggi?<textarea id="note" placeholder="Oggi ho notato che…"></textarea></label>
     <div><button id="saveNote">Salva la nota</button></div></section>
   <section class="block"><h2>Altri modelli di quest'area</h2><div class="links">${related.map((x) => `<a class="btn" href="#m-${x.slug}">${esc(x.title)}</a>`).join("")}</div></section>
   <section class="block"><div class="row">
     ${done ? `<button id="undo">Rimetti tra i modelli da studiare</button>` : `<button class="primary" id="complete">Segna come completato</button>`}
-    ${!done && !isCur ? `<button id="pick">Studialo questa settimana</button>` : ""}
+    ${!done && !isCur ? `<button id="pick">Studialo adesso</button>` : ""}
   </div></section>`;
 
   const drawReading = () => {
@@ -329,14 +399,16 @@ function renderModel(m) {
       : `<p>${esc(m.sp)}</p><h3>Come funziona</h3><p>${esc(m.ap[0])}</p><h3>Come usarlo, e i suoi limiti</h3><p>${esc(m.ap[1])}</p>`;
   };
   drawReading();
+  app.querySelectorAll("[data-goto]").forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); document.getElementById(a.dataset.goto)?.scrollIntoView({ behavior: "smooth" }); }));
+  if (pendingScroll) { const id = pendingScroll; pendingScroll = null; setTimeout(() => document.getElementById(id)?.scrollIntoView(), 30); }
   app.querySelectorAll("[data-mode]").forEach((b) => b.addEventListener("click", () => {
     view.mode = b.dataset.mode; app.querySelectorAll("[data-mode]").forEach((x) => x.setAttribute("aria-pressed", x === b)); drawReading(); }));
   app.querySelectorAll("[data-ex]").forEach((c) => c.addEventListener("change", () => {
-    const a = S.ex[m.slug] || [false, false, false]; a[+c.dataset.ex] = c.checked; S.ex[m.slug] = a; save();
+    const a = S.ex[m.slug] || [false, false, false]; a[+c.dataset.ex] = c.checked; S.ex[m.slug] = a; markActive(); save();
     c.closest("label").classList.toggle("done", c.checked); if (c.checked) toast("Esercizio fatto");
   }));
   bindQuiz(qItems, (score, total) => {
-    S.quiz[m.slug] = { score, total, data: today() }; const fresh = !S.rev[m.slug]; schedule(m.slug); save();
+    S.quiz[m.slug] = { score, total, data: today() }; const fresh = !S.rev[m.slug]; schedule(m.slug); markActive(); save();
     $("#quizScore").textContent = `Risultato: ${score} su ${total}.${fresh ? " Questo modello entra nel ripasso: te lo riproporrò domani." : ""}`;
   });
   const drawEntries = () => {
@@ -347,19 +419,19 @@ function renderModel(m) {
   drawEntries();
   $("#saveNote").addEventListener("click", () => {
     const testo = $("#note").value.trim().slice(0, 3000); if (!testo) return $("#note").focus();
-    S.journal.push({ id: Date.now().toString(36), slug: m.slug, data: today(), tipo: "nota", testo }); save();
+    markActive(); S.journal.push({ id: Date.now().toString(36), slug: m.slug, data: today(), tipo: "nota", testo }); save();
     $("#note").value = ""; toast("Nota salvata"); drawEntries();
   });
   $("#wsSave").addEventListener("click", () => {
     const sit = $("#wsSit").value.trim(); if (!sit) return $("#wsSit").focus();
     const risposte = m.q.map((d, i) => [d, $("#wsQ" + i).value.trim().slice(0, 1500)]).filter(([, r]) => r);
-    S.journal.push({ id: Date.now().toString(36), slug: m.slug, data: today(), tipo: "scheda", testo: sit.slice(0, 2000), risposte, azione: $("#wsAct").value.trim().slice(0, 1500) });
+    markActive(); S.journal.push({ id: Date.now().toString(36), slug: m.slug, data: today(), tipo: "scheda", testo: sit.slice(0, 2000), risposte, azione: $("#wsAct").value.trim().slice(0, 1500) });
     save(); ["wsSit", "wsAct", "wsQ0", "wsQ1", "wsQ2"].forEach((id) => { $("#" + id).value = ""; });
     toast("Scheda salvata nel diario"); drawEntries();
   });
   $("#complete")?.addEventListener("click", () => complete(m));
   $("#undo")?.addEventListener("click", () => undoComplete(m));
-  $("#pick")?.addEventListener("click", () => { S.current = m.slug; S.startedAt[m.slug] = today(); save(); toast(`“${m.title}” è il modello di questa settimana`); location.hash = "settimana"; });
+  $("#pick")?.addEventListener("click", () => { S.current = m.slug; S.startedAt[m.slug] = today(); save(); toast(`“${m.title}” è il tuo modello in corso`); location.hash = "settimana"; });
 }
 
 function entryHTML(e) {
@@ -385,18 +457,19 @@ function renderReview() {
   setTop(backBtn()); bindBack();
   const due = dueList();
   if (due.length) return reviewStep(due, 0, 0);
-  const pool = MODELS.filter((m) => S.done[m.slug] || S.rev[m.slug]);
+  const pool = studiedPool();
   const source = pool.length >= 3 ? pool : ESSENTIAL;
-  const picks = shuffled(source.flatMap((m) => m.qz.map((q, i) => ({ m, q, i }))), Date.now() % 100000).slice(0, 5);
+  const picks = shuffled(source.flatMap((m) => whichQuestions(m).map((w) => ({ m, q: w.q, i: w.i }))), Date.now() % 100000).slice(0, 5);
   const nd = nextDue();
   app.innerHTML = `<div class="stack">
-    <span class="eyebrow">Allenamento libero</span><h1>Cinque domande</h1>
-    <p class="muted">${nd ? `Il ripasso di oggi è finito. Il prossimo è il ${esc(fmtDate(nd))}. Intanto puoi allenarti con domande a caso.` : "Non hai ancora modelli nel ripasso. Queste domande vengono dai modelli essenziali."}
-      ${pool.length >= 3 ? ` Prese dai ${pool.length} modelli che hai studiato.` : ""}</p>
+    <span class="eyebrow">Allenamento misto</span><h1>Quale modello?</h1>
+    <p class="muted">Cinque situazioni reali: riconosci quale modello ti aiuta. È l'abilità più importante, perché nella vita nessuno ti dice quale modello usare.
+      ${pool.length >= 3 ? `Le situazioni vengono dai ${pool.length} modelli che hai studiato.` : "Finché non hai studiato almeno 3 modelli, le situazioni vengono dai modelli essenziali."}
+      ${nd ? `Il prossimo ripasso programmato è il ${esc(fmtDate(nd))}.` : ""}</p>
   </div>
   <section class="block" style="margin-top:14px">${quizHTML(picks, "r:")}<p class="small muted" id="revScore"></p>
-    <div><button class="primary" id="again">Altre cinque domande</button></div></section>`;
-  bindQuiz(picks, (score, total) => { $("#revScore").textContent = `Risultato: ${score} su ${total}.`; });
+    <div><button class="primary" id="again">Altre cinque situazioni</button></div></section>`;
+  bindQuiz(picks, (score, total) => { markActive(); save(); $("#revScore").textContent = `Risultato: ${score} su ${total}.`; });
   $("#again").addEventListener("click", renderReview);
 }
 function reviewStep(queue, idx, score) {
@@ -405,23 +478,29 @@ function reviewStep(queue, idx, score) {
     const nd = nextDue();
     app.innerHTML = `<div class="stack"><span class="eyebrow">Ripasso di oggi</span><h1>Fatto: ${score} su ${queue.length}</h1>
       <p class="muted">I modelli che hai ricordato torneranno tra più giorni; quelli sbagliati domani.${nd ? ` Prossimo ripasso: ${esc(fmtDate(nd))}.` : ""}</p>
-      <div class="row"><a class="btn primary" href="#piano">Torna al piano</a><button id="free">Allenamento libero</button></div></div>`;
+      <div class="row"><a class="btn primary" href="#piano">Torna al piano</a><button id="free">Allenamento misto</button></div></div>`;
     $("#free").addEventListener("click", renderReview);
     return;
   }
-  const m = BY[queue[idx]]; const r = S.rev[m.slug]; const qi = (r.n || 0) % m.qz.length;
-  const item = [{ m, q: m.qz[qi], i: qi }];
-  app.innerHTML = `<div class="stack">
-    <span class="eyebrow">Ripasso di oggi · ${idx + 1} di ${queue.length}</span>
-    <div class="bar"><i style="width:${Math.round(idx / queue.length * 100)}%"></i></div>
-    <h1>${esc(m.title)}</h1>
-    <div class="sheet" id="recall">
-      <p><strong>Prima prova a ricordare.</strong> Cosa dice questo modello, e dove l'hai visto in azione? Pensaci qualche secondo.</p>
-      <div><button id="show">Mostra l'idea</button></div>
-    </div>
-  </div>
-  <section class="block" style="margin-top:14px">${quizHTML(item, "")}<div class="row" id="nextRow" hidden><button class="primary" id="next">${idx + 1 < queue.length ? "Avanti" : "Fine"}</button><a class="btn" href="#m-${m.slug}">Rileggi la scheda</a></div></section>`;
-  $("#show").addEventListener("click", () => { $("#recall").innerHTML = `<span class="eyebrow">L'idea</span><p style="font-size:1.1rem">${esc(m.tag)}</p>`; });
+  const m = BY[queue[idx]]; const r = S.rev[m.slug]; const qs = reviewQuestions(m); const qq = qs[(r.n || 0) % qs.length];
+  const item = [{ m, q: qq.q, i: qq.i }]; const which = qq.kind === "which";
+  const head = `<span class="eyebrow">Ripasso di oggi · ${idx + 1} di ${queue.length}</span>
+    <div class="bar"><i style="width:${Math.round(idx / queue.length * 100)}%"></i></div>`;
+  const tail = `<div class="row" id="nextRow" hidden><button class="primary" id="next">${idx + 1 < queue.length ? "Avanti" : "Fine"}</button><a class="btn" href="#m-${m.slug}">Rileggi la scheda</a></div>`;
+  app.innerHTML = which
+    ? `<div class="stack">${head}<h1>Quale modello?</h1><p class="muted">Leggi la situazione e riconosci il modello che ti aiuta.</p></div>
+       <section class="block" style="margin-top:14px">${quizHTML(item, "")}${tail}</section>`
+    : `<div class="stack">${head}<h1>${esc(m.title)}</h1>
+      <div class="sheet" id="recall">
+        <p><strong>Prima prova a ricordare.</strong> Scrivi con parole tue cosa dice questo modello e dove l'hai visto in azione. Anche due righe bastano.</p>
+        <textarea id="recallText" aria-label="Cosa ricordo di questo modello" style="min-height:80px"></textarea>
+        <div><button id="show">Confronta con la scheda</button></div>
+      </div></div>
+      <section class="block" style="margin-top:14px">${quizHTML(item, "")}${tail}</section>`;
+  $("#show")?.addEventListener("click", () => {
+    const mine = $("#recallText").value.trim();
+    $("#recall").innerHTML = `${mine ? `<span class="eyebrow">Hai scritto</span><p class="muted">${esc(mine)}</p>` : ""}<span class="eyebrow">L'idea</span><p style="font-size:1.1rem">${esc(m.tag)}</p><p class="small muted">${esc(m.sp)}</p>`;
+  });
   bindQuiz(item, (ok) => {
     grade(m.slug, ok === 1);
     $("#nextRow").hidden = false;
@@ -493,7 +572,7 @@ function renderDecision() {
     $("#decSave").addEventListener("click", () => {
       const notes = $("#decNotes").value.trim().slice(0, 3000); const act = $("#decAct").value.trim().slice(0, 1500);
       if (!notes && !act) return $("#decNotes").focus();
-      S.journal.push({ id: Date.now().toString(36), slug: null, data: today(), tipo: "decisione", testo: (decision.text.trim() || d.label).slice(0, 2000),
+      markActive(); S.journal.push({ id: Date.now().toString(36), slug: null, data: today(), tipo: "decisione", testo: (decision.text.trim() || d.label).slice(0, 2000),
         risposte: notes ? [["Cosa mi fanno vedere i modelli", notes]] : [], azione: act, modelli: d.models.map((m) => m.slug) });
       save(); toast("Decisione salvata nel diario"); decision = { text: "", id: "", auto: [] }; location.hash = "diario";
     });
@@ -527,7 +606,7 @@ function renderJournal() {
 }
 
 function complete(m) {
-  S.done[m.slug] = today(); if (S.current === m.slug) S.current = null; schedule(m.slug);
+  S.done[m.slug] = today(); if (S.current === m.slug) S.current = null; schedule(m.slug); markActive();
   const n = currentModel(); if (n) S.startedAt[n.slug] = today(); save();
   toast(n ? `Completato. Prossimo: ${n.title}` : "Hai completato tutto il percorso");
   if (location.hash === "#piano") route(); else location.hash = "piano";
@@ -546,15 +625,23 @@ function renderSettings() {
     <div><button class="primary" id="saveName">Salva</button></div>
   </section>
   <section class="block">
+    <h2>Il tuo ritmo</h2>
+    <div class="radios">
+      ${[[1, "1 modello a settimana", "Con calma: una settimana per ogni modello."], [2, "2 modelli a settimana", "Il ritmo consigliato: circa 4 giorni per modello."], [3, "3 modelli a settimana", "Veloce: un modello ogni 2 giorni circa."]].map(([v, t, d]) =>
+        `<label for="pace-${v}"><input type="radio" name="pace" id="pace-${v}" value="${v}" ${S.pace === v ? "checked" : ""}><span><strong>${t}</strong><span class="muted small">${d}</span></span></label>`).join("")}
+    </div>
+    <p class="small muted">Il ritmo è solo un suggerimento: puoi passare al prossimo modello quando vuoi. Conta di più fare i 5 passi che correre.</p>
+  </section>
+  <section class="block">
     <h2>Ordine del percorso</h2>
     <div class="radios">
       ${[["essenziale", "Prima i 30 essenziali", "I modelli più utili nella vita di tutti i giorni, poi tutti gli altri."],
          ["lista", "Nell'ordine dell'elenco", "Dal ragionamento alla narrazione, un'area dopo l'altra."],
-         ["categorie", "Alternando le aree", "Ogni settimana un'area diversa, per collegare idee lontane."],
+         ["categorie", "Alternando le aree", "Ogni modello di un'area diversa, per collegare idee lontane."],
          ["casuale", "In ordine casuale", "Un ordine mescolato una volta e poi fisso."]].map(([v, t, d]) =>
         `<label for="ord-${v}"><input type="radio" name="ord" id="ord-${v}" value="${v}" ${S.order === v ? "checked" : ""}><span><strong>${t}</strong><span class="muted small">${d}</span></span></label>`).join("")}
     </div>
-    <p class="small muted">Cambiare ordine non tocca i modelli completati né quello della settimana in corso.</p>
+    <p class="small muted">Cambiare ordine non tocca i modelli completati né quello in corso.</p>
   </section>
   <section class="block">
     <h2>Copia di sicurezza</h2>
@@ -569,6 +656,7 @@ function renderSettings() {
     <div class="row" id="resetRow"><button id="reset">Azzera i progressi</button></div>
   </section>`;
   $("#saveName").addEventListener("click", () => { S.nome = $("#pNome").value.trim().slice(0, 60); save(); toast("Salvato"); });
+  app.querySelectorAll("input[name=pace]").forEach((r) => r.addEventListener("change", () => { S.pace = +r.value; save(); toast("Ritmo aggiornato"); }));
   app.querySelectorAll("input[name=ord]").forEach((r) => r.addEventListener("change", () => {
     const cur = currentModel(); S.order = r.value; if (r.value === "casuale" && !S.seed) S.seed = Math.floor(Math.random() * 1e9) + 1;
     if (cur) S.current = cur.slug; save(); toast("Ordine aggiornato");
@@ -587,7 +675,7 @@ function renderSettings() {
   $("#reset").addEventListener("click", () => {
     $("#resetRow").innerHTML = `<span>Sei sicuro?</span><button class="primary" id="resetYes" style="background:var(--bad);border-color:var(--bad)">Sì, azzera</button><button id="resetNo">Annulla</button>`;
     $("#resetNo").onclick = renderSettings;
-    $("#resetYes").onclick = () => { S.done = {}; S.quiz = {}; S.ex = {}; S.rev = {}; S.current = null; S.startedAt = {}; save(); toast("Progressi azzerati"); location.hash = "piano"; };
+    $("#resetYes").onclick = () => { S.done = {}; S.quiz = {}; S.ex = {}; S.rev = {}; S.read = {}; S.days = {}; S.current = null; S.startedAt = {}; save(); toast("Progressi azzerati"); location.hash = "piano"; };
   });
 }
 
